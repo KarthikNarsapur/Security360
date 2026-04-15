@@ -93,7 +93,7 @@ function WelcomePage() {
             >
               Comprehensive cloud security platform that protects your cloud
               infrastructure and Kubernetes clusters with intelligent threat detection,
-              automated compliance monitoring, and complete Kubernetes security
+              automated compliance monitoring, and complete kubernetes security
               management.
             </motion.p>
 
@@ -192,7 +192,7 @@ function WelcomePage() {
                 <p className="text-indigo-100 text-lg mb-8 leading-relaxed">
                   A unified security platform that protects both your cloud
                   infrastructure and kubernetes clusters in real time. From
-                  infrastructure scanning to Kubernetes security tool
+                  infrastructure scanning to kubernetes security tool
                   management, get comprehensive protection with live monitoring,
                   automated compliance, and detailed reporting — all through an
                   intuitive interface without writing any code.
