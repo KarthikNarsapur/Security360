@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: IAM Role to allow third-party scanning account to assume role with read-only access
+
+Resources:
+  ScannerAssumeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ScannerReadOnlyRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "arn:aws:iam::338920687491:root"
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      Description: Allows scanning service to assume this role and perform read-only actions
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt ScannerAssumeRole.Arn
+    Description: ARN of the created role

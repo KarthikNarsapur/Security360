@@ -1,0 +1,11 @@
+.dark .ant-menu-item-selected {
+    @apply bg-gray-800 !important;
+  }
+  
+  .ant-menu-item {
+    @apply text-black !important;
+  }
+
+  .ant-menu-item-selected {
+    @apply bg-blue-900 text-white !important;
+  }

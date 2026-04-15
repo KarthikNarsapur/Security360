@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar */
+/* ::-webkit-scrollbar {
+  width: 6px;
+} */
+
+/* ::-webkit-scrollbar-track {
+  @apply bg-slate-100 dark:bg-slate-800;
+} */
+
+/* ::-webkit-scrollbar-thumb {
+  @apply bg-indigo-300 dark:bg-indigo-600 rounded-full;
+} */
+
+/* ::-webkit-scrollbar-thumb:hover {
+  @apply bg-indigo-400 dark:bg-indigo-500;
+} */
+
+/* transitions for theme switching */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass {
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient text */
+.gradient-text {
+  @apply bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 bg-clip-text text-transparent;
+}
+
+.dark .gradient-text {
+  @apply bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-300 bg-clip-text text-transparent;
+}
+
+/* Custom dropdown styles */
+.header-dropdown .ant-dropdown-menu {
+  @apply bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border border-indigo-100 dark:border-slate-700 rounded-xl shadow-2xl shadow-indigo-500/20;
+}
+
+.header-dropdown .ant-dropdown-menu-item {
+  @apply border-0 rounded-lg m-1;
+}
+
+/* Loading skeleton */
+.react-loading-skeleton {
+  @apply bg-gradient-to-r from-slate-200 via-slate-300 to-slate-200 dark:from-slate-700 dark:via-slate-600 dark:to-slate-700;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/20;
+}
+
+/* Button */
+
+.btn-primary {
+  @apply h-12 w-full text-base font-semibold 
+         !bg-gradient-to-r from-indigo-600 to-indigo-700
+         hover:from-indigo-700 hover:to-indigo-800 border-0
+         font-semibold px-6 py-2 h-auto rounded-xl shadow-lg
+         hover:shadow-xl hover:scale-105 
+         disabled:text-white
+         transition-all duration-200;
+}
+
+.btn-primary-loading {
+  @apply cursor-not-allowed opacity-70;
+}
+
+.btn-secondary {
+  @apply bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg border-2 border-indigo-200 dark:border-slate-600 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-slate-700 font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105;
+}
+
+/* Ant Design Menu */
+.ant-menu {
+  background: transparent !important;
+}
+
+.ant-menu-item {
+  border-radius: 12px !important;
+  margin-bottom: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-menu-item:hover {
+  background: linear-gradient(
+    to right,
+    rgb(238 242 255),
+    rgb(224 231 255)
+  ) !important;
+}
+
+.dark .ant-menu-item:hover {
+  background: linear-gradient(
+    to right,
+    rgb(30 41 59),
+    rgb(51 65 85)
+  ) !important;
+}
+
+.ant-menu-item-selected {
+  background: linear-gradient(
+    to right,
+    rgb(99 102 241),
+    rgb(79 70 229)
+  ) !important;
+  color: white !important;
+}
+
+.ant-menu-item-selected .ant-menu-item-icon,
+.ant-menu-item-selected span {
+  color: white !important;
+}
+
+.ant-menu-item-selected:hover .ant-menu-item-icon:hover,
+.ant-menu-item-selected:hover span {
+  color: black !important;
+}
+
+.dark .ant-menu-item-selected:hover .dark .ant-menu-item-icon:hover,
+.dark .ant-menu-item-selected:hover span {
+  color: white !important;
+}
+
+/* Tailwind Toggle Switch */
+input[type="checkbox"]:checked + .slider {
+  background-color: oklch(27.8% 0.033 256.848);
+}
+
+input[type="checkbox"]:checked + .slider:before {
+  transform: translateX(100%);
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+  border-radius: 9999px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.4s;
+}
+
+Add commentMore actions .ant-input::placeholder {
+  color: #94a3b8 !important;
+}
+.dark .ant-input::placeholder {
+  color: #e2e8f0 !important;
+}
+
+@layer utilities {
+  .tooltip-text {
+    @apply absolute bottom-full mb-2 left-1/2 -translate-x-1/2 
+      text-xs text-slate-700 dark:text-slate-300 
+      font-medium opacity-0 group-hover:opacity-100 
+      translate-y-1 group-hover:-translate-y-0 
+      transition-all duration-300 ease-out pointer-events-none 
+      select-none scale-90 group-hover:scale-100;
+  }
+}

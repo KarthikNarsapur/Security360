@@ -1,0 +1,41 @@
+/* WebKit-based browsers (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  /* border-radius: 4px; */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e5e4e2;
+  /* border-radius: 4px; */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #d3d3d3;
+}
+
+/* Dark mode styles */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2d3748;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #718096;
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e5e4e2 transparent; /* Thumb and track colors (light mode) */
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: #2d3748 transparent; /* Thumb and track colors (dark mode) */
+}
