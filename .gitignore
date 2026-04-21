@@ -35,3 +35,7 @@ backend/logs/ip_blocked.log
 !backend/utils/site24x7_dashboards.json
 !backend/utils/site24x7_settings.json
 backend/backend.log
+
+
+awscliv2.zip
+aws/

@@ -134,8 +134,11 @@ export default function Dashboard({ modal, darkMode }) {
                 />
               )}
 
-              {selectedMenu === "summary" && (
+            {/* aws */}
+
+              {selectedMenu === "aws-summary" && (
                 <SummaryComponent
+                  cloud="aws"
                   setSelectedMenu={setSelectedMenu}
                   results={results}
                   setResults={setResults}
@@ -147,9 +150,7 @@ export default function Dashboard({ modal, darkMode }) {
                   prevReportAvailable={prevReportAvailable}
                   setPrevReportAvailable={setPrevReportAvailable}
                   securityServicesScanResults={securityServicesScanResults}
-                  setSecurityServicesScanResults={
-                    setSecurityServicesScanResults
-                  }
+                  setSecurityServicesScanResults={setSecurityServicesScanResults}
                   globalServicesScanResults={globalServicesScanResults}
                   setGlobalServicesScanResults={setGlobalServicesScanResults}
                   modal={modal}
@@ -165,8 +166,9 @@ export default function Dashboard({ modal, darkMode }) {
                 />
               )}
 
-              {selectedMenu == "findings" && (
+              {selectedMenu == "aws-findings" && (
                 <FindingsComponent
+                  cloud="aws"
                   findings={results}
                   selectedFinding={selectedFinding}
                   onSelect={setSelectedFinding}
@@ -174,9 +176,6 @@ export default function Dashboard({ modal, darkMode }) {
                   meta={meta}
                   fullName={fullName}
                   securityServicesScanResults={securityServicesScanResults}
-                  setSecurityServicesScanResults={
-                    setSecurityServicesScanResults
-                  }
                   globalServicesScanResults={globalServicesScanResults}
                   modal={modal}
                   darkMode={darkMode}
@@ -190,6 +189,122 @@ export default function Dashboard({ modal, darkMode }) {
                   setIsSampleReport={setIsSampleReport}
                 />
               )}
+
+              {/* Azure */}
+
+              {selectedMenu === "az-summary" && (
+                <SummaryComponent cloud="azure"
+                  setSelectedMenu={setSelectedMenu}
+                  results={results}
+                  setResults={setResults}
+                  meta={meta}
+                  setMeta={setMeta}
+                  isReportAvailable={isReportAvailable}
+                  setIsReportAvailable={setIsReportAvailable}
+                  accountDetails={accountDetails}
+                  prevReportAvailable={prevReportAvailable}
+                  setPrevReportAvailable={setPrevReportAvailable}
+                  securityServicesScanResults={securityServicesScanResults}
+                  setSecurityServicesScanResults={setSecurityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  setGlobalServicesScanResults={setGlobalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )}
+
+              {selectedMenu === "az-findings" && (
+                <FindingsComponent cloud="azure"
+                  findings={results}
+                  selectedFinding={selectedFinding}
+                  onSelect={setSelectedFinding}
+                  onClose={() => setSelectedFinding(null)}
+                  meta={meta}
+                  fullName={fullName}
+                  securityServicesScanResults={securityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )}
+
+              {/* GCP */}
+              {selectedMenu === "gcp-summary" && (
+                <SummaryComponent cloud="gcp"
+                  setSelectedMenu={setSelectedMenu}
+                  results={results}
+                  setResults={setResults}
+                  meta={meta}
+                  setMeta={setMeta}
+                  isReportAvailable={isReportAvailable}
+                  setIsReportAvailable={setIsReportAvailable}
+                  accountDetails={accountDetails}
+                  prevReportAvailable={prevReportAvailable}
+                  setPrevReportAvailable={setPrevReportAvailable}
+                  securityServicesScanResults={securityServicesScanResults}
+                  setSecurityServicesScanResults={setSecurityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  setGlobalServicesScanResults={setGlobalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )}
+
+              {selectedMenu === "gcp-findings" && (
+                <FindingsComponent cloud="gcp"
+                  findings={results}
+                  selectedFinding={selectedFinding}
+                  onSelect={setSelectedFinding}
+                  onClose={() => setSelectedFinding(null)}
+                  meta={meta}
+                  fullName={fullName}
+                  securityServicesScanResults={securityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )}
+
+
+
+
+
+
+
+
+
 
               {selectedMenu === "threatdetect" && (
                 <ThreatDetection

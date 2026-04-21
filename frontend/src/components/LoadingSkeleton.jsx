@@ -98,7 +98,8 @@ export const LoadingSkeletonFindingsTable = () => {
 
 export const LoadingSkeletonProfilePage = () => {
   return (
-    <div className="p-10 bg-gray-100 dark:bg-gray-500 flex flex-col items-center">
+    // <div className="p-10 bg-gray-100 dark:bg-gray-500 flex flex-col items-center">
+    <div className="p-10 bg-gray-100 dark:bg-[#1e1b4b] dark:text-white flex flex-col items-center">
       <div className="flex bg-white dark:bg-gray-700 min-h-[100px] w-[900px] relative pb-[100px] pt-16 before:absolute before:content-[''] before:left-0 before:top-0 before:w-full before:h-2 before:bg-gradient-to-r before:from-indigo-500 before:to-indigo-900 dark:before:from-gray-900 dark:before:to-gray-200">
         <div className="absolute left-20 transform bottom-[-100px] z-10 group">
           <div className="relative">
