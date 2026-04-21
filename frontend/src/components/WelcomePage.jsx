@@ -38,7 +38,7 @@ function WelcomePage() {
     },
     {
       icon: <BadgeCheck className="w-6 h-6" />,
-      text: "Enforce AWS security best practices and get continuous compliance reports",
+      text: "Enforce cloud security best practices and get continuous compliance reports",
     },
     {
       icon: <Activity className="w-6 h-6" />,
@@ -46,14 +46,14 @@ function WelcomePage() {
     },
     {
       icon: <Network className="w-6 h-6" />,
-      text: "Add AWS accounts easily and run automated scans without any coding",
+      text: "Add your accounts easily and run automated scans without any coding",
     },
   ];
 
   const eksFeatures = [
     {
       icon: <Container className="w-6 h-6" />,
-      text: "List and manage all EKS clusters with comprehensive security tooling",
+      text: "List and manage all clusters in EKS, AKS, GKE with comprehensive security tooling",
     },
     {
       icon: <Settings className="w-6 h-6" />,
@@ -91,9 +91,9 @@ function WelcomePage() {
               className="text-xl text-slate-600 dark:text-slate-300 mb-12 max-w-2xl mx-auto leading-relaxed"
               variants={fadeInUp}
             >
-              Comprehensive cloud security platform that protects your AWS
-              infrastructure and EKS clusters with intelligent threat detection,
-              automated compliance monitoring, and complete Kubernetes security
+              Comprehensive cloud security platform that protects your cloud
+              infrastructure and Kubernetes clusters with intelligent threat detection,
+              automated compliance monitoring, and complete kubernetes security
               management.
             </motion.p>
 
@@ -120,7 +120,7 @@ function WelcomePage() {
             >
               <h3 className="text-xl font-semibold text-indigo-600 dark:text-indigo-400 mb-6 flex items-center justify-center gap-2">
                 <ShieldCheck className="w-5 h-5" />
-                AWS Infrastructure Security
+                Cloud Infrastructure Security
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
                 {infraFeatures.map((feature, index) => (
@@ -151,7 +151,7 @@ function WelcomePage() {
             >
               <h3 className="text-xl font-semibold text-purple-600 dark:text-purple-400 mb-6 flex items-center justify-center gap-2">
                 <Container className="w-5 h-5" />
-                EKS Kubernetes Security
+                Kubernetes Security
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
                 {eksFeatures.map((feature, index) => (
@@ -190,9 +190,9 @@ function WelcomePage() {
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <motion.div variants={fadeInUp}>
                 <p className="text-indigo-100 text-lg mb-8 leading-relaxed">
-                  A unified security platform that protects both your AWS
-                  infrastructure and EKS clusters in real time. From
-                  infrastructure scanning to Kubernetes security tool
+                  A unified security platform that protects both your cloud
+                  infrastructure and kubernetes clusters in real time. From
+                  infrastructure scanning to kubernetes security tool
                   management, get comprehensive protection with live monitoring,
                   automated compliance, and detailed reporting — all through an
                   intuitive interface without writing any code.
