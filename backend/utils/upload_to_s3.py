@@ -208,11 +208,25 @@ def get_report_from_s3_function(data: ReportRequest):
         # summary report
         elif data.type == "summary":
 
+            cloud = getattr(data, "cloud", "aws") or "aws"
+
             if data.is_sample:
-                s3_folder_name = f"Sample_Reports/aws-account-security-reports"
-                object_name = f"{s3_folder_name}/security_scan_sample_report.json"
+                if cloud == "azure":
+                    s3_folder_name = f"Sample_Reports/azure-security-reports"
+                    object_name = f"{s3_folder_name}/azure_scan_sample_report.json"
+                elif cloud == "gcp":
+                    s3_folder_name = f"Sample_Reports/gcp-security-reports"
+                    object_name = f"{s3_folder_name}/gcp_scan_sample_report.json"
+                else:
+                    s3_folder_name = f"Sample_Reports/aws-account-security-reports"
+                    object_name = f"{s3_folder_name}/security_scan_sample_report.json"
             else:
-                s3_folder_name = f"aws-account-security-reports/{username}"
+                if cloud == "azure":
+                    s3_folder_name = f"azure-security-reports/{username}"
+                elif cloud == "gcp":
+                    s3_folder_name = f"gcp-security-reports/{username}"
+                else:
+                    s3_folder_name = f"aws-account-security-reports/{username}"
                 object_name = f"{s3_folder_name}/{account_id}.json"
 
             summary_data = fetch_json_from_s3(object_name) or {}

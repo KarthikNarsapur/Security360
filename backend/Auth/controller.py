@@ -294,12 +294,18 @@ def get_user_account_details_function(get_user: GetUserDetailsModel):
             },
         )
         roles_info_response = (
-            dynamodb_response.get("Item", {}).get("Roles_Info", []).get("L", [])
+            dynamodb_response.get("Item", {}).get("Roles_Info", {}).get("L", [])
         )
         kubernetes_roles_info_response = (
             dynamodb_response.get("Item", {})
-            .get("Kubernetes_Roles_Info", [])
+            .get("Kubernetes_Roles_Info", {})
             .get("L", [])
+        )
+        azure_roles_info_response = (
+            dynamodb_response.get("Item", {}).get("Azure_Roles_Info", {}).get("L", [])
+        )
+        gcp_roles_info_response = (
+            dynamodb_response.get("Item", {}).get("GCP_Roles_Info", {}).get("L", [])
         )
 
         full_name = dynamodb_response.get("Item", {}).get("Full_Name", {}).get("S", "")
@@ -308,6 +314,8 @@ def get_user_account_details_function(get_user: GetUserDetailsModel):
         # print("roles_info_response", roles_info_response)
         roles_info = []
         kubernetes_roles_info = []
+        azure_roles_info = []
+        gcp_roles_info = []
 
         for account in roles_info_response:
             account_data = account.get("M", {})
@@ -329,12 +337,37 @@ def get_user_account_details_function(get_user: GetUserDetailsModel):
                 }
             )
 
+        for account in azure_roles_info_response:
+            account_data = account.get("M", {})
+            azure_roles_info.append(
+                {
+                    "role_arn": account_data.get("role_arn", {}).get("S", ""),
+                    "account_id": account_data.get("account_id", {}).get("S", ""),
+                    "account_name": account_data.get("account_name", {}).get("S", ""),
+                    "tenant_id": account_data.get("tenant_id", {}).get("S", ""),
+                    "client_id": account_data.get("client_id", {}).get("S", ""),
+                    "client_secret": account_data.get("client_secret", {}).get("S", ""),
+                }
+            )
+
+        for account in gcp_roles_info_response:
+            account_data = account.get("M", {})
+            gcp_roles_info.append(
+                {
+                    "role_arn": account_data.get("role_arn", {}).get("S", ""),
+                    "account_id": account_data.get("account_id", {}).get("S", ""),
+                    "account_name": account_data.get("account_name", {}).get("S", ""),
+                }
+            )
+
         return {
             "status": "ok",
             "response": {
                 "username": username,
                 "account_details": roles_info,
                 "eks_account_details": kubernetes_roles_info,
+                "azure_account_details": azure_roles_info,
+                "gcp_account_details": gcp_roles_info,
                 "full_name": full_name,
                 "is_admin": is_admin
             },
