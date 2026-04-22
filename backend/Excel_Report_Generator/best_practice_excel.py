@@ -84,7 +84,7 @@ def sort_by_severity(items: List[Dict], key: str = "severity_score") -> List[Dic
 # ============================================================================
 
 
-def create_summary_sheet(    workbook: Workbook, data):
+def create_summary_sheet(workbook: Workbook, meta, security_services):
     """Create the summary worksheet with account and scan information"""
     sheet = workbook.create_sheet("Summary", 0)
 
@@ -591,14 +591,6 @@ def add_resource_data(
 def generate_excel_report(data):
     """
     Generate complete Excel report with summary and region worksheets
-
-    Args:
-        meta: Metadata about the account and scan
-        filtered_data: List of findings/issues
-        security_services: Security services scan results
-
-    Returns:
-        BytesIO: Excel file as bytes
     """
     workbook = Workbook()
 
@@ -606,11 +598,48 @@ def generate_excel_report(data):
     if "Sheet" in workbook.sheetnames:
         workbook.remove(workbook["Sheet"])
 
+    # Extract meta, security_services, and findings from the report data
+    meta = {
+        "account_name": data.get("account_name", ""),
+        "account_id": data.get("account_id", ""),
+        "timestamp": data.get("timestamp", ""),
+        "regions": data.get("regions", []),
+        "scanned_meta_data": data.get("scanned_meta_data", []),
+    }
+
+    security_services = data.get("security_services_scanned_data", [])
+    if not isinstance(security_services, list):
+        security_services = []
+
+    global_services = data.get("global_services_scan_results", {})
+
+    # Flatten regional + global results into a single list for region worksheets
+    filtered_data = []
+    for region_data in data.get("results", []):
+        region = region_data.get("region", "")
+        for key, value in region_data.get("data", {}).items():
+            if isinstance(value, dict):
+                filtered_data.append({
+                    **value,
+                    "type": key,
+                    "region": region,
+                    "account_id": data.get("account_id", ""),
+                })
+
+    for key, value in global_services.items():
+        if isinstance(value, dict):
+            filtered_data.append({
+                **value,
+                "type": key,
+                "region": "global",
+                "account_id": data.get("account_id", ""),
+            })
+
     # Create summary sheet
-    create_summary_sheet(workbook, data)
+    create_summary_sheet(workbook, meta, security_services)
 
     # Create region worksheets
-    create_region_worksheets(workbook, data)
+    create_region_worksheets(workbook, filtered_data, meta)
 
     # Save to BytesIO
     output = BytesIO()

@@ -411,7 +411,7 @@ export default function FindingsTable({
     let currentRow = serviceHeaderRow + 1;
 
     // Region-wise services
-    securityServicesScanResults.forEach((regionData) => {
+    (Array.isArray(securityServicesScanResults) ? securityServicesScanResults : []).forEach((regionData) => {
       const region = regionData.region;
       if (region == "global") {
         return;

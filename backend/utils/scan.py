@@ -390,10 +390,15 @@ def run_aws_scan(data: AccessTokenModel):
                         print(
                             f" Error scanning region {region} for account {account_id}: {e}"
                         )
+                        import traceback
+                        traceback.print_exc()
                         failed_regions.append(region)
 
                 if len(failed_regions) > 0:
                     print(f"failed scan for {account_id} in regions: {failed_regions}")
+                    notifications["error"].append(
+                        f"Scan failed in regions: {', '.join(failed_regions)} for account: {account_id}"
+                    )
 
                 # step 5: save report and upload to S3
                 try:

@@ -211,7 +211,7 @@ const SummaryComponent = ({
           scanned_meta_data: report.scanned_meta_data,
         });
         setSecurityServicesScanResults(
-          report.security_services_scanned_data || {}
+          report.security_services_scanned_data || []
         );
         setGlobalServicesScanResults(report.global_services_scan_results || {});
         setIsReportAvailable(true);

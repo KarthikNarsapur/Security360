@@ -73,6 +73,8 @@ export default function Dashboard({ modal, darkMode }) {
   // Per-cloud isolated state
   const [awsResults, setAwsResults] = useState([]);
   const [awsMeta, setAwsMeta] = useState({});
+  const [awsSecurityServicesScanResults, setAwsSecurityServicesScanResults] = useState([]);
+  const [awsGlobalServicesScanResults, setAwsGlobalServicesScanResults] = useState({});
 
   const [azureResults, setAzureResults] = useState([]);
   const [azureMeta, setAzureMeta] = useState({});
@@ -138,8 +140,8 @@ export default function Dashboard({ modal, darkMode }) {
 
   const pageMap = {
     // AWS
-    "aws-summary": <AwsSummary {...sharedProps} results={awsResults} setResults={setAwsResults} meta={awsMeta} setMeta={setAwsMeta} />,
-    "aws-findings": <AwsFindings {...sharedProps} results={awsResults} meta={awsMeta} />,
+    "aws-summary": <AwsSummary {...sharedProps} results={awsResults} setResults={setAwsResults} meta={awsMeta} setMeta={setAwsMeta} securityServicesScanResults={awsSecurityServicesScanResults} setSecurityServicesScanResults={setAwsSecurityServicesScanResults} globalServicesScanResults={awsGlobalServicesScanResults} setGlobalServicesScanResults={setAwsGlobalServicesScanResults} />,
+    "aws-findings": <AwsFindings {...sharedProps} results={awsResults} meta={awsMeta} securityServicesScanResults={awsSecurityServicesScanResults} globalServicesScanResults={awsGlobalServicesScanResults} />,
 
     // Azure
     "az-summary": <AzureSummary {...sharedProps} results={azureResults} setResults={setAzureResults} meta={azureMeta} setMeta={setAzureMeta} />,

@@ -418,6 +418,14 @@ def add_section_ec2_network_security(doc, data):
         "open_security_groups": "Insecure Security Groups",
         "unused_security_groups": "Unused Security Groups",
         "unencrypted_ebs_volumes": "EBS Volume Encryption",
+        "default_vpcs": "Default VPCs",
+        "termination_protection": "EC2 Termination Protection",
+        "rds_public": "Publicly Accessible RDS",
+        "rds_unencrypted": "Unencrypted RDS Instances",
+        "delete protection": "RDS Cluster Deletion Protection",
+        "secrets_manager": "Secrets Manager",
+        "guardduty_findings": "GuardDuty Findings",
+        "iam_access_analyzer_findings": "IAM Access Analyzer",
     }
 
     # Collect rows grouped by check
