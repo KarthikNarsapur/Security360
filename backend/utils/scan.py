@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone, timedelta
 
 # from backend.modules.Other import ou
-from modules import (
+from modules.AwsChecks import (
     ec2_checks,
     iam_checks,
     nacl_checks,
@@ -161,6 +161,113 @@ def run_global_services_checks(session, scan_meta_data_global_services):
 
 
 def run_scan(data: AccessTokenModel):
+
+    try:
+        # Route to cloud-specific scan
+        cloud = getattr(data, "cloud", "aws") or "aws"
+
+        if cloud == "azure":
+            return run_azure_scan(data)
+        elif cloud == "gcp":
+            return {"status": "error", "error_message": "GCP scanning is not yet supported."}
+
+        return run_aws_scan(data)
+
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return {"status": "error", "error_message": "Unknown error occured"}
+
+
+def run_azure_scan(data: AccessTokenModel):
+    """Run Azure security scan for given subscription accounts."""
+    try:
+        from utils.upload_to_s3 import save_report, upload_to_s3
+        from db.crud import increament_scan_count, check_scan_threshold
+        from azure.azure_scan import run_azure_checks, get_azure_credential
+
+        username = data.username
+        if not username:
+            return {"status": "error", "error_message": "Username is missing."}
+        if not data.accounts or len(data.accounts) == 0:
+            return {"status": "error", "error_message": "Azure accounts list is missing or empty."}
+
+        threshold_response = check_scan_threshold(username=username, scan_type="azure_basic")
+        if threshold_response.get("status") == "error":
+            return threshold_response
+
+        notifications = {"success": [], "error": []}
+
+        for account in data.accounts:
+            subscription_id = account.account_id or ""
+            account_name = account.account_name or ""
+            tenant_id = getattr(account, "tenant_id", "") or ""
+            client_id = getattr(account, "client_id", "") or ""
+            client_secret = getattr(account, "client_secret", "") or ""
+
+            if not subscription_id:
+                notifications["error"].append("Missing subscription ID")
+                continue
+
+            if not all([tenant_id, client_id, client_secret]):
+                notifications["error"].append(
+                    f"Missing Azure credentials for subscription: {subscription_id}. "
+                    "Please provide tenant_id, client_id, and client_secret."
+                )
+                continue
+
+            try:
+                print(f"Scanning Azure subscription: {subscription_id}")
+                credential = get_azure_credential(tenant_id, client_id, client_secret)
+                results, sub_name = run_azure_checks(subscription_id, credential)
+                account_name = account_name or sub_name
+
+                # Format results to match the standard report structure
+                regional_results = [{"region": "global", "data": results}]
+                scan_meta_data = [{"region": "global", "data": {
+                    "total_scanned": sum(r.get("additional_info", {}).get("total_scanned", 0) for r in results.values()),
+                    "affected": sum(r.get("additional_info", {}).get("affected", 0) for r in results.values()),
+                    "High": sum(1 for r in results.values() if r.get("severity_level") == "High" and r.get("additional_info", {}).get("affected", 0) > 0),
+                    "Medium": sum(1 for r in results.values() if r.get("severity_level") == "Medium" and r.get("additional_info", {}).get("affected", 0) > 0),
+                    "Low": sum(1 for r in results.values() if r.get("severity_level") == "Low" and r.get("additional_info", {}).get("affected", 0) > 0),
+                    "Critical": 0,
+                    "services_scanned": list(set(r.get("service", "") for r in results.values())),
+                }}]
+
+                saved_filename = save_report(
+                    account_id=subscription_id,
+                    username=username,
+                    account_name=account_name,
+                    results=regional_results,
+                    type="summary",
+                    scan_meta_data=scan_meta_data,
+                    security_services_scan=[],
+                    global_services_scan_results={},
+                    scan_meta_data_global_services={},
+                    output_dir=f"scan-reports/azure/{username}",
+                    regions=["global"],
+                )
+
+                upload_to_s3(
+                    file_name=saved_filename,
+                    folder_name=f"scan-reports/azure/{username}",
+                    s3_folder_name=f"azure-security-reports/{username}",
+                )
+
+                increament_scan_count(username=username, scan_type="azure_basic")
+                notifications["success"].append(f"Scan successful: {subscription_id}")
+
+            except Exception as e:
+                print(f"Error scanning Azure subscription {subscription_id}: {e}")
+                notifications["error"].append(f"Scan failed for: {subscription_id}")
+
+        return {"status": "ok", "notifications": notifications}
+
+    except Exception as e:
+        print(f"Azure scan error: {str(e)}")
+        return {"status": "error", "error_message": f"Azure scan failed: {str(e)}"}
+
+
+def run_aws_scan(data: AccessTokenModel):
 
     try:
         from utils.upload_to_s3 import save_report
