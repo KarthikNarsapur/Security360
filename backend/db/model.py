@@ -6,10 +6,6 @@ class RoleModel(BaseModel):
     role_arn: str
     account_id: str
     account_name: Optional[str] = ""
-    # Azure Service Principal fields (used when role_type is "azure")
-    tenant_id: Optional[str] = ""
-    client_id: Optional[str] = ""
-    client_secret: Optional[str] = ""
 
 
 class UserDataModel(BaseModel):

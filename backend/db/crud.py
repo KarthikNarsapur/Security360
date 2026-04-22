@@ -19,8 +19,6 @@ import base64
 
 scan_type_mapping = {
     "basic": "BasicScanCount",
-    "azure_basic": "AzureBasicScanCount",
-    "gcp_basic": "GCPBasicScanCount",
     "cloudtrail": "CloudTrailScanCount",
     "vpc-flow-logs": "VPCFlowLogsScanCount",
     "cis": "CISScanCount",
@@ -145,10 +143,7 @@ def add_roleinfo_function(rolesinfo: RolesInfoModel):
         Role_Key = "Roles_Info"
         if rolesinfo.role_type == "eks":
             Role_Key = "Kubernetes_Roles_Info"
-        elif rolesinfo.role_type == "azure":
-            Role_Key = "Azure_Roles_Info"
-        elif rolesinfo.role_type == "gcp":
-            Role_Key = "GCP_Roles_Info"
+        print(Role_Key)
 
         updated_roles = user_data.get(Role_Key, []) + [
             role.model_dump() for role in rolesinfo.roles
@@ -209,10 +204,6 @@ def update_roleinfo_function(rolesinfo: RolesInfoModel):
         Role_Key = "Roles_Info"
         if rolesinfo.role_type == "eks":
             Role_Key = "Kubernetes_Roles_Info"
-        elif rolesinfo.role_type == "azure":
-            Role_Key = "Azure_Roles_Info"
-        elif rolesinfo.role_type == "gcp":
-            Role_Key = "GCP_Roles_Info"
 
         existing_roles = user_data.get(Role_Key, [])
         if not existing_roles:
@@ -397,13 +388,7 @@ def delete_role_data_function(role_data: RolesInfoModel):
             return {"status": "error", "error_message": "User not found"}
 
         # Set key based on role_type
-        role_type_map = {
-            "infra": "Roles_Info",
-            "eks": "Kubernetes_Roles_Info",
-            "azure": "Azure_Roles_Info",
-            "gcp": "GCP_Roles_Info",
-        }
-        Role_Key = role_type_map.get(role_type, "Roles_Info")
+        Role_Key = "Roles_Info" if role_type == "infra" else "Kubernetes_Roles_Info"
 
         current_roles = []
         if Role_Key in response["Item"] and "L" in response["Item"][Role_Key]:
@@ -727,8 +712,8 @@ def check_scan_threshold(username: str, scan_type: str):
         if scan_type.lower() in UNLIMITED_FREE_SCAN_TYPES:
             return {"status": "ok", "message": "listnamespace allowed (unlimited)"}
 
-        ONE_FREE_SCAN_TYPES = ["basic", "azure_basic", "gcp_basic"]
-        threshold = 100 if scan_type.lower() in ONE_FREE_SCAN_TYPES else 0
+        ONE_FREE_SCAN_TYPES = ["basic"]
+        threshold = 1 if scan_type.lower() in ONE_FREE_SCAN_TYPES else 0
 
         field_to_check = scan_type_mapping.get(scan_type.lower())
         if not field_to_check:

@@ -1,16 +1,9 @@
 import { MdAccountCircle } from "react-icons/md";
 import { BiSolidFileFind, BiSolidError } from "react-icons/bi";
-import { SiAmazonwebservices, SiGooglecloud } from "react-icons/si";
-import { VscAzure } from "react-icons/vsc";
+import { SiAmazonwebservices } from "react-icons/si";
 import { AiFillSecurityScan } from "react-icons/ai";
 
-const cloudServiceIcons = {
-  aws: <SiAmazonwebservices />,
-  azure: <VscAzure />,
-  gcp: <SiGooglecloud />,
-};
-
-export default function OverviewCard({ findings, setSelectedMenu, cloud = "aws" }) {
+export default function OverviewCard({ findings, setSelectedMenu }) {
   const filteredFindings = findings.filter(
     (f) =>
       f.additional_info?.affected > 0 && f.additional_info?.total_scanned > 0
@@ -50,9 +43,9 @@ export default function OverviewCard({ findings, setSelectedMenu, cloud = "aws" 
     {
       label: "Services",
       value: uniqueResources,
-      icon: cloudServiceIcons[cloud] || cloudServiceIcons.aws,
-      color: "from-blue-500 to-blue-600",
-      iconBg: "bg-gradient-to-r from-blue-500 to-blue-600",
+      icon: <SiAmazonwebservices />,
+      color: "from-green-600 to-green-700",
+      iconBg: "bg-gradient-to-r from-green-600 to-green-700",
     },
     {
       label: "Accounts",

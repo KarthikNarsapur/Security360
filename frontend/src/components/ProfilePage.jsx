@@ -124,8 +124,6 @@ function ProfilePage() {
       localStorage.removeItem("full_name");
       localStorage.removeItem("account_details");
       localStorage.removeItem("eks_account_details");
-      localStorage.removeItem("azure_account_details");
-      localStorage.removeItem("gcp_account_details");
 
       window.location.href = "/login";
     } catch (error) {

@@ -9,8 +9,8 @@ import {
 } from "@ant-design/icons";
 
 import "./Dashboard.css";
-// SummaryComponent and FindingsComponent are no longer used directly.
-// Cloud-specific pages (AwsSummary, AzureSummary, etc.) handle their own logic now.
+import SummaryComponent from "./SummaryComponent";
+import FindingsComponent from "./FindingsComponent";
 import SidebarComponent from "./SidebarComponent";
 import OUComponent from "./OuComponent";
 import HomePage from "./Homepage";
@@ -31,27 +31,14 @@ import AWAFDashboard from "./AWAF/AWAFDashboard";
 import Site24x7_dashboard from "./Site24x7/Site24x7_dashboard";
 import OWASPSummary from "./Framework/OWASP/OWASPSummary";
 
-
-// AWS
-import AwsSummary from "./pages/aws/AwsSummary";
-import AwsFindings from "./pages/aws/AwsFindings";
-
-// Azure
-import AzureSummary from "./pages/azure/AzureSummary";
-import AzureFindings from "./pages/azure/AzureFindings";
-
-// GCP
-import GcpSummary from "./pages/gcp/GcpSummary";
-import GcpFindings from "./pages/gcp/GcpFindings";
-
-
-
 const { Header, Content } = Layout;
 
 export default function Dashboard({ modal, darkMode }) {
+  const [results, setResults] = useState([]);
   const [selectedMenu, setSelectedMenu] = useState("home");
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [meta, setMeta] = useState({});
   // const [report, setReport] = useState([]);
   const [isReportAvailable, setIsReportAvailable] = useState(false);
   const [error, setError] = useState("");
@@ -69,18 +56,6 @@ export default function Dashboard({ modal, darkMode }) {
   const [globalServicesScanResults, setGlobalServicesScanResults] = useState(
     {},
   );
-
-  // Per-cloud isolated state
-  const [awsResults, setAwsResults] = useState([]);
-  const [awsMeta, setAwsMeta] = useState({});
-  const [awsSecurityServicesScanResults, setAwsSecurityServicesScanResults] = useState([]);
-  const [awsGlobalServicesScanResults, setAwsGlobalServicesScanResults] = useState({});
-
-  const [azureResults, setAzureResults] = useState([]);
-  const [azureMeta, setAzureMeta] = useState({});
-
-  const [gcpResults, setGcpResults] = useState([]);
-  const [gcpMeta, setGcpMeta] = useState({});
   const [clusters, setClusters] = useState([
     {
       cluster_name: "common-ap-south-1-test-eks",
@@ -127,33 +102,6 @@ export default function Dashboard({ modal, darkMode }) {
     getUserData();
   }, []);
 
-  // Shared props across all cloud pages
-  const sharedProps = {
-    accountDetails,
-    modal,
-    darkMode,
-    setUserName,
-    setFullName,
-    setAccountDetails,
-    setEksAccountDetails,
-  };
-
-  const pageMap = {
-    // AWS
-    "aws-summary": <AwsSummary {...sharedProps} results={awsResults} setResults={setAwsResults} meta={awsMeta} setMeta={setAwsMeta} securityServicesScanResults={awsSecurityServicesScanResults} setSecurityServicesScanResults={setAwsSecurityServicesScanResults} globalServicesScanResults={awsGlobalServicesScanResults} setGlobalServicesScanResults={setAwsGlobalServicesScanResults} />,
-    "aws-findings": <AwsFindings {...sharedProps} results={awsResults} meta={awsMeta} securityServicesScanResults={awsSecurityServicesScanResults} globalServicesScanResults={awsGlobalServicesScanResults} />,
-
-    // Azure
-    "az-summary": <AzureSummary {...sharedProps} results={azureResults} setResults={setAzureResults} meta={azureMeta} setMeta={setAzureMeta} />,
-    "az-findings": <AzureFindings {...sharedProps} results={azureResults} meta={azureMeta} />,
-
-    // GCP
-    "gcp-summary": <GcpSummary {...sharedProps} results={gcpResults} setResults={setGcpResults} meta={gcpMeta} setMeta={setGcpMeta} />,
-    "gcp-findings": <GcpFindings {...sharedProps} results={gcpResults} meta={gcpMeta} />,
-  };
-
-
-
   return (
     <div>
       <Layout
@@ -173,8 +121,8 @@ export default function Dashboard({ modal, darkMode }) {
             transition: "margin-left 0.3s",
           }}
         >
-          <Content className="bg-gray-100 dark:bg-slate-900">
-            <div className="bg-gray-100 dark:bg-slate-900">
+          <Content className="bg-gray-100 dark:bg-gray-500">
+            <div className="bg-gray-100 dark:bg-gray-500">
               {selectedMenu === "home" && (
                 <HomePage
                   userName={userName}
@@ -185,11 +133,10 @@ export default function Dashboard({ modal, darkMode }) {
                   setEksAccountDetails={setEksAccountDetails}
                 />
               )}
-                {pageMap[selectedMenu]}
 
             {/* aws */}
 
-              {/* {selectedMenu === "aws-summary" && (
+              {selectedMenu === "aws-summary" && (
                 <SummaryComponent
                   cloud="aws"
                   setSelectedMenu={setSelectedMenu}
@@ -217,9 +164,9 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )} */}
+              )}
 
-              {/* {selectedMenu == "aws-findings" && (
+              {selectedMenu == "aws-findings" && (
                 <FindingsComponent
                   cloud="aws"
                   findings={results}
@@ -241,11 +188,11 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )} */}
+              )}
 
               {/* Azure */}
 
-              {/* {selectedMenu === "az-summary" && (
+              {selectedMenu === "az-summary" && (
                 <SummaryComponent cloud="azure"
                   setSelectedMenu={setSelectedMenu}
                   results={results}
@@ -272,9 +219,9 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )} */}
+              )}
 
-              {/* {selectedMenu === "az-findings" && (
+              {selectedMenu === "az-findings" && (
                 <FindingsComponent cloud="azure"
                   findings={results}
                   selectedFinding={selectedFinding}
@@ -295,10 +242,10 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )} */}
+              )}
 
               {/* GCP */}
-              {/* {selectedMenu === "gcp-summary" && (
+              {selectedMenu === "gcp-summary" && (
                 <SummaryComponent cloud="gcp"
                   setSelectedMenu={setSelectedMenu}
                   results={results}
@@ -325,9 +272,9 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )} */}
+              )}
 
-              {/* {selectedMenu === "gcp-findings" && (
+              {selectedMenu === "gcp-findings" && (
                 <FindingsComponent cloud="gcp"
                   findings={results}
                   selectedFinding={selectedFinding}
@@ -348,7 +295,7 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )} */}
+              )}
 
 
 
@@ -359,7 +306,7 @@ export default function Dashboard({ modal, darkMode }) {
 
 
 
-              {(selectedMenu === "threatdetect" || selectedMenu === "aws-threatdetect" || selectedMenu === "az-threatdetect" || selectedMenu === "gcp-threatdetect") && (
+              {selectedMenu === "threatdetect" && (
                 <ThreatDetection
                   accountDetails={accountDetails}
                   modal={modal}

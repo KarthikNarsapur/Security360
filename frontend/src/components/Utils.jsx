@@ -275,8 +275,6 @@ const fetchUserDetails = async ({ navigate }) => {
     const full_name = localStorage.getItem("full_name") || "";
     const accountDetails = localStorage.getItem("account_details");
     const eksAccountDetails = localStorage.getItem("eks_account_details");
-    const azureAccountDetails = localStorage.getItem("azure_account_details");
-    const gcpAccountDetails = localStorage.getItem("gcp_account_details");
 
     let parsedAccountDetails = null;
     let parsedEKSAccountDetails = null;
@@ -309,8 +307,6 @@ const fetchUserDetails = async ({ navigate }) => {
         localStorage.removeItem("full_name");
         localStorage.removeItem("account_details");
         localStorage.removeItem("eks_account_details");
-        localStorage.removeItem("azure_account_details");
-        localStorage.removeItem("gcp_account_details");
       } catch (error) {
         console.error("Error removing cookies:", error);
       }
@@ -321,9 +317,7 @@ const fetchUserDetails = async ({ navigate }) => {
       username !== "" &&
       full_name !== "" &&
       accountDetails !== null &&
-      eksAccountDetails !== null &&
-      azureAccountDetails !== null &&
-      gcpAccountDetails !== null
+      eksAccountDetails !== null
     ) {
       return {
         status: "ok",
@@ -331,8 +325,6 @@ const fetchUserDetails = async ({ navigate }) => {
         fullName: full_name,
         accountDetails: accountDetails,
         eksAccountDetails: eksAccountDetails,
-        azureAccountDetails: azureAccountDetails,
-        gcpAccountDetails: gcpAccountDetails,
       };
     }
     const response = await fetch(`${backend_url}/api/getuseraccount`, {
@@ -355,14 +347,6 @@ const fetchUserDetails = async ({ navigate }) => {
         "eks_account_details",
         JSON.stringify(result?.response?.eks_account_details)
       );
-      localStorage.setItem(
-        "azure_account_details",
-        JSON.stringify(result?.response?.azure_account_details || [])
-      );
-      localStorage.setItem(
-        "gcp_account_details",
-        JSON.stringify(result?.response?.gcp_account_details || [])
-      );
 
       return {
         status: "ok",
@@ -370,8 +354,6 @@ const fetchUserDetails = async ({ navigate }) => {
         fullName: result?.response?.full_name || "",
         accountDetails: result?.response?.account_details || "",
         eksAccountDetails: result?.response?.eks_account_details || "",
-        azureAccountDetails: result?.response?.azure_account_details || [],
-        gcpAccountDetails: result?.response?.gcp_account_details || [],
         isAdmin: result?.response?.is_admin || false,
       };
     } else {

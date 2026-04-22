@@ -6,20 +6,15 @@ class AccountDetail(BaseModel):
     account_id: str
     role_arn: str
     account_name: Optional[str] = ""
-    # Azure Service Principal fields
-    tenant_id: Optional[str] = ""
-    client_id: Optional[str] = ""
-    client_secret: Optional[str] = ""
 
 
 class AccessTokenModel(BaseModel):
     access_token: Optional[str] = None
     username: str
     accounts: List[AccountDetail]
-    regions: Optional[list[str]] = []
+    regions: list[str]
     pillars: Optional[list[str]] = None
     vpcFlowLogNames: Optional[Dict[str, Dict[str, str]]] = None
-    cloud: Optional[str] = "aws"
 
 
 class ReportRequest(BaseModel):
@@ -28,7 +23,6 @@ class ReportRequest(BaseModel):
     type: str
     is_sample: bool
     threat_detection_scan_type: Optional[List[str]] = None
-    cloud: Optional[str] = "aws"
 
 
 class UserQueryModel(BaseModel):

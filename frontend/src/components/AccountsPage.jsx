@@ -15,8 +15,6 @@ function AccountsPage() {
 
   const [infraAccounts, setInfraAccounts] = useState([]);
   const [eksAccounts, setEksAccounts] = useState([]);
-  const [azureAccounts, setAzureAccounts] = useState([]);
-  const [gcpAccounts, setGcpAccounts] = useState([]);
   const [editingAccount, setEditingAccount] = useState(null);
   const [newAccountName, setNewAccountName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -34,12 +32,8 @@ function AccountsPage() {
     try {
       const infra = JSON.parse(localStorage.getItem("account_details") || "[]") || [];
       const eks = JSON.parse(localStorage.getItem("eks_account_details") || "[]") || [];
-      const azure = JSON.parse(localStorage.getItem("azure_account_details") || "[]") || [];
-      const gcp = JSON.parse(localStorage.getItem("gcp_account_details") || "[]") || [];
       setInfraAccounts(infra);
       setEksAccounts(eks);
-      setAzureAccounts(azure);
-      setGcpAccounts(gcp);
     } catch (e) {
       console.error("Error reading accounts from cookies:", e);
       setInfraAccounts([]);
@@ -90,18 +84,6 @@ function AccountsPage() {
               (a) => !(a.account_id === accountId && a.role_arn === roleArn)
             )
           );
-        } else if (roleType === "azure") {
-          setAzureAccounts((prev) =>
-            prev.filter(
-              (a) => !(a.account_id === accountId && a.role_arn === roleArn)
-            )
-          );
-        } else if (roleType === "gcp") {
-          setGcpAccounts((prev) =>
-            prev.filter(
-              (a) => !(a.account_id === accountId && a.role_arn === roleArn)
-            )
-          );
         } else {
           setEksAccounts((prev) =>
             prev.filter(
@@ -110,14 +92,9 @@ function AccountsPage() {
           );
         }
 
-        // Update localStorage to keep it the source of truth
-        const accountDetailsKeyMap = {
-          infra: "account_details",
-          eks: "eks_account_details",
-          azure: "azure_account_details",
-          gcp: "gcp_account_details",
-        };
-        const accountDetailsKey = accountDetailsKeyMap[roleType] || "account_details";
+        // Update cookies to keep them the source of truth
+        const accountDetailsKey =
+          roleType === "infra" ? "account_details" : "eks_account_details";
         const existing =
           JSON.parse(localStorage.getItem(accountDetailsKey) || "[]") || [];
         const updated = existing.filter(
@@ -196,10 +173,6 @@ function AccountsPage() {
 
         if (editingAccount.roleType === "infra") {
           updateList(infraAccounts, setInfraAccounts, "account_details");
-        } else if (editingAccount.roleType === "azure") {
-          updateList(azureAccounts, setAzureAccounts, "azure_account_details");
-        } else if (editingAccount.roleType === "gcp") {
-          updateList(gcpAccounts, setGcpAccounts, "gcp_account_details");
         } else {
           updateList(eksAccounts, setEksAccounts, "eks_account_details");
         }
@@ -231,7 +204,7 @@ function AccountsPage() {
       return (
         <div className="text-center py-8">
           <p className="text-slate-600 dark:text-slate-400 text-lg">
-            No {roleType === "infra" ? "AWS Infra" : roleType === "azure" ? "Azure" : roleType === "gcp" ? "GCP" : "Kubernetes"} account roles
+            No {roleType === "infra" ? "Infra" : "Kubernetes"} account roles
             found
           </p>
         </div>
@@ -438,37 +411,11 @@ function AccountsPage() {
         {/* Infra Accounts */}
         <section className="space-y-6">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            AWS Infra Account Roles
+            Infra Account Roles
           </h2>
           {renderAccountRoles(
             infraAccounts,
             "infra",
-            handleDeleteAccount,
-            getAccountName
-          )}
-        </section>
-
-        {/* Azure Accounts */}
-        <section className="space-y-6">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Azure Subscription Roles
-          </h2>
-          {renderAccountRoles(
-            azureAccounts,
-            "azure",
-            handleDeleteAccount,
-            getAccountName
-          )}
-        </section>
-
-        {/* GCP Accounts */}
-        <section className="space-y-6">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            GCP Project Roles
-          </h2>
-          {renderAccountRoles(
-            gcpAccounts,
-            "gcp",
             handleDeleteAccount,
             getAccountName
           )}
