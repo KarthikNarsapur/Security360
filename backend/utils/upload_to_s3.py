@@ -284,6 +284,21 @@ def get_report_from_s3_function(data: ReportRequest):
 
             return {"status": "ok", "data": awaf_scan_data}
 
+        elif data.type in ("rbi", "sebi", "pcidss", "dpdp"):
+            framework = data.type
+            if data.is_sample:
+                s3_folder_name = f"Sample_Reports/{framework}_rules"
+                object_name = f"{s3_folder_name}/{framework}_sample_report.json"
+            else:
+                s3_folder_name = f"aws-account-security-reports/{username}/{framework}"
+                object_name = f"{s3_folder_name}/{account_id}.json"
+
+            fw_data = fetch_json_from_s3(object_name) or {}
+            if fw_data.get("status", "") == "error":
+                return fw_data
+
+            return {"status": "ok", "data": fw_data}
+
         else:
             return {"status": "error", "error_message": "Invalid report type"}
 

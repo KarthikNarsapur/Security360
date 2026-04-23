@@ -20,11 +20,13 @@ def _get_framework_registry():
     from modules.RBI.rbi_run_checks import run_rbi_checks
     from modules.SEBI.sebi_run_checks import run_sebi_checks
     from modules.PCIDSS.pcidss_run_checks import run_pcidss_checks
+    from modules.frameworks.DPDP.dpdp_run_checks import run_dpdp_global_checks, run_dpdp_regional_checks
 
     return {
-        "rbi": (run_rbi_checks, True),
-        "sebi": (run_sebi_checks, True),
-        "pcidss": (run_pcidss_checks, True),
+        "rbi": (run_rbi_checks, None, "global_only"),
+        "sebi": (run_sebi_checks, None, "global_only"),
+        "pcidss": (run_pcidss_checks, None, "global_only"),
+        "dpdp": (run_dpdp_global_checks, run_dpdp_regional_checks, "hybrid"),
     }
 
 
@@ -57,7 +59,23 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                 "error_message": f"Unknown framework '{framework}'. Available: {list(registry.keys())}",
             }
 
-        run_checks_fn, is_global_only = registry[framework]
+        entry = registry[framework]
+        scan_mode = entry[2] if len(entry) > 2 else "global_only"
+
+        # Backward compat: old format (fn, bool) → new format
+        if len(entry) == 2:
+            run_checks_fn, is_global = entry
+            if is_global:
+                scan_mode = "global_only"
+                global_fn = run_checks_fn
+                regional_fn = None
+            else:
+                scan_mode = "regional_only"
+                global_fn = None
+                regional_fn = run_checks_fn
+        else:
+            global_fn, regional_fn, scan_mode = entry
+
         username = data.username
         roles_info = data.accounts
         REGIONS = data.regions
@@ -90,11 +108,11 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                 secret_key = credentials["SecretAccessKey"]
                 session_token = credentials["SessionToken"]
 
-                # step 4: run checks
+                # step 4: run checks based on scan mode
                 scan_results = []
 
-                if is_global_only:
-                    # Global services (IAM, S3, CloudTrail) — run once per account
+                if scan_mode == "global_only":
+                    # Global services only — run once per account
                     scan_meta_data = _fresh_meta(framework)
                     session = boto3.Session(
                         aws_access_key_id=access_key,
@@ -103,7 +121,7 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                         region_name="ap-south-1",
                     )
                     try:
-                        results = run_checks_fn(session, scan_meta_data)
+                        results = global_fn(session, scan_meta_data)
                         scan_results.append(
                             {
                                 "region": "global",
@@ -120,8 +138,61 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                         )
                         continue
 
+                elif scan_mode == "hybrid":
+                    # Hybrid: global checks once + regional checks per region
+                    # 1. Run global checks once
+                    global_meta = _fresh_meta(framework)
+                    session = boto3.Session(
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        aws_session_token=session_token,
+                        region_name="ap-south-1",
+                    )
+                    try:
+                        global_results = global_fn(session, global_meta)
+                        scan_results.append(
+                            {
+                                "region": "global",
+                                "data": global_results,
+                                "scan_meta_data": global_meta,
+                            }
+                        )
+                    except Exception as e:
+                        print(f"Error running {framework} global checks for {account_id}: {e}")
+                        notifications["error"].append(f"{framework} global check failed: {account_id}")
+
+                    # 2. Run regional checks per selected region
+                    if regional_fn:
+                        failed_regions = []
+                        for region in REGIONS:
+                            session = boto3.Session(
+                                aws_access_key_id=access_key,
+                                aws_secret_access_key=secret_key,
+                                aws_session_token=session_token,
+                                region_name=region,
+                            )
+                            print(f"  {framework} scanning region: {region}")
+                            try:
+                                regional_meta = _fresh_meta(framework)
+                                regional_results = regional_fn(session, regional_meta)
+                                scan_results.append(
+                                    {
+                                        "region": region,
+                                        "data": regional_results,
+                                        "scan_meta_data": regional_meta,
+                                    }
+                                )
+                            except Exception as e:
+                                print(f"Error scanning region {region} for {account_id}: {e}")
+                                failed_regions.append(region)
+                        if failed_regions:
+                            print(f"Failed regions for {account_id}: {failed_regions}")
+                            notifications["error"].append(
+                                f"Failed in regions: {', '.join(failed_regions)} for {account_id}"
+                            )
+
                 else:
-                    # Regional services — run once per region
+                    # Regional only — run once per region
                     failed_regions = []
                     for region in REGIONS:
                         session = boto3.Session(
@@ -133,7 +204,7 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                         print(f"Checking region: {region}")
                         try:
                             scan_meta_data = _fresh_meta(framework)
-                            results = run_checks_fn(session, scan_meta_data)
+                            results = (regional_fn or global_fn)(session, scan_meta_data)
                             scan_results.append(
                                 {
                                     "region": region,

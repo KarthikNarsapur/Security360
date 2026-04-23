@@ -2,7 +2,28 @@ def check_guardduty_enabled(session, scan_meta_data):
     print("check_guardduty_enabled and its findings")
     gd = session.client("guardduty")
 
-    detectors = gd.list_detectors().get("DetectorIds", [])
+    try:
+        detectors = gd.list_detectors().get("DetectorIds", [])
+    except Exception as e:
+        error_msg = str(e)
+        if "SubscriptionRequiredException" in error_msg:
+            print(f"check_guardduty_enabled: Service not subscribed in {session.region_name} — marking as not enabled")
+        else:
+            print(f"check_guardduty_enabled: Unexpected error — {error_msg}")
+        return {
+            "check_name": "GuardDuty Enabled Check",
+            "service": "GuardDuty",
+            "problem_statement": "Amazon GuardDuty is not available or not subscribed in this region.",
+            "severity_score": 60,
+            "severity_level": "Medium",
+            "resources_affected": [],
+            "recommendation": "Enable Amazon GuardDuty to detect suspicious activities.",
+            "additional_info": {
+                "total_scanned": 1,
+                "affected": 0,
+            },
+        }
+
     findings_list = []
 
     if not detectors:

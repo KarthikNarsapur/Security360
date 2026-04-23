@@ -30,6 +30,9 @@ import ISODashboard from "./ISO/ISODashboard";
 import AWAFDashboard from "./AWAF/AWAFDashboard";
 import Site24x7_dashboard from "./Site24x7/Site24x7_dashboard";
 import OWASPSummary from "./Framework/OWASP/OWASPSummary";
+import ComplianceDashboard from "./Compliance/ComplianceDashboard";
+import ComplianceLanding from "./Compliance/ComplianceLanding";
+import IndustryDashboard from "./Industry/IndustryDashboard";
 
 
 // AWS
@@ -52,6 +55,7 @@ export default function Dashboard({ modal, darkMode }) {
   const [selectedMenu, setSelectedMenu] = useState("home");
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [siderWidth, setSiderWidth] = useState(260);
   // const [report, setReport] = useState([]);
   const [isReportAvailable, setIsReportAvailable] = useState(false);
   const [error, setError] = useState("");
@@ -150,6 +154,30 @@ export default function Dashboard({ modal, darkMode }) {
     // GCP
     "gcp-summary": <GcpSummary {...sharedProps} results={gcpResults} setResults={setGcpResults} meta={gcpMeta} setMeta={setGcpMeta} />,
     "gcp-findings": <GcpFindings {...sharedProps} results={gcpResults} meta={gcpMeta} />,
+
+    // Compliance (cloud-agnostic)
+    "compliance": <ComplianceLanding setSelectedMenu={setSelectedMenu} />,
+    "compliance-gdpr": <ComplianceDashboard frameworkKey="gdpr" {...sharedProps} />,
+    "compliance-pcidss": <ComplianceDashboard frameworkKey="pcidss" {...sharedProps} />,
+    "compliance-hipaa": <ComplianceDashboard frameworkKey="hipaa" {...sharedProps} />,
+    "compliance-soc2": <ComplianceDashboard frameworkKey="soc2" {...sharedProps} />,
+    "compliance-fedramp": <ComplianceDashboard frameworkKey="fedramp" {...sharedProps} />,
+    "compliance-wafr": <ComplianceDashboard frameworkKey="wafr" {...sharedProps} />,
+    "compliance-cis": <ComplianceDashboard frameworkKey="cis" {...sharedProps} />,
+    "compliance-nist": <ComplianceDashboard frameworkKey="nist" {...sharedProps} />,
+    "compliance-dpdp": <ComplianceDashboard frameworkKey="dpdp" {...sharedProps} />,
+    "compliance-rbi": <ComplianceDashboard frameworkKey="rbi" {...sharedProps} />,
+    "compliance-sebi": <ComplianceDashboard frameworkKey="sebi" {...sharedProps} />,
+    "compliance-ndhm": <ComplianceDashboard frameworkKey="ndhm" {...sharedProps} />,
+    "compliance-ehr": <ComplianceDashboard frameworkKey="ehr" {...sharedProps} />,
+
+    // Industry (navigation hubs)
+    "industry": <IndustryDashboard industryKey={null} setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-healthcare": <IndustryDashboard industryKey="healthcare" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-finance": <IndustryDashboard industryKey="finance" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-saas": <IndustryDashboard industryKey="saas" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-government": <IndustryDashboard industryKey="government" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-ecommerce": <IndustryDashboard industryKey="ecommerce" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
   };
 
 
@@ -165,11 +193,13 @@ export default function Dashboard({ modal, darkMode }) {
           setCollapsed={setCollapsed}
           setSelectedMenu={setSelectedMenu}
           selectedMenu={selectedMenu}
+          siderWidth={siderWidth}
+          setSiderWidth={setSiderWidth}
         />
 
         <Layout
           style={{
-            marginLeft: collapsed ? "80px" : "200px",
+            marginLeft: collapsed ? "80px" : `${siderWidth}px`,
             transition: "margin-left 0.3s",
           }}
         >

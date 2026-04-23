@@ -39,11 +39,22 @@ def guardduty_enabled(session):
             "severity_score": 80,
             "severity_level": "High" if not enabled else "None",
             "is_enabled": "Yes" if enabled else "No",
-            # "resources_affected": [] if enabled else ["No Detectors Found"],
             "recommendation": "Enable GuardDuty for threat detection.",
         }
     except ClientError as e:
-        print("error in Guardduty: ", str(e))
+        error_code = e.response["Error"]["Code"]
+        if error_code == "SubscriptionRequiredException":
+            print(f"guardduty_enabled: Service not subscribed in {session.region_name} — marking as not enabled")
+            return {
+                "check_name": "Amazon GuardDuty",
+                "service": "GuardDuty",
+                "problem_statement": "GuardDuty has never been enabled in this region.",
+                "severity_score": 80,
+                "severity_level": "High",
+                "is_enabled": "No",
+                "recommendation": "Enable GuardDuty for threat detection.",
+            }
+        print(f"guardduty_enabled: Unexpected error — {error_code}")
         return None
 
 
@@ -87,11 +98,31 @@ def inspector_enabled(session):
             "recommendation": "Enable Amazon Inspector for vulnerability scanning.",
         }
     except client.exceptions.AccessDeniedException as e:
-        print("error in inspector with AccessDeniedException: ", str(e))
-        return None
+        print(f"inspector_enabled: Access denied — {e}")
+        return {
+            "check_name": "Amazon Inspector",
+            "service": "Inspector",
+            "problem_statement": "Amazon Inspector access denied. Insufficient permissions to check status.",
+            "severity_score": 70,
+            "severity_level": "Medium",
+            "is_enabled": "No",
+            "recommendation": "Enable Amazon Inspector for vulnerability scanning.",
+        }
 
     except Exception as e:
-        print("error in inspector : ", str(e))
+        error_msg = str(e)
+        if "SubscriptionRequiredException" in error_msg:
+            print(f"inspector_enabled: Service not subscribed in {session.region_name} — marking as not enabled")
+            return {
+                "check_name": "Amazon Inspector",
+                "service": "Inspector",
+                "problem_statement": "Amazon Inspector has never been enabled in this region.",
+                "severity_score": 70,
+                "severity_level": "Medium",
+                "is_enabled": "No",
+                "recommendation": "Enable Amazon Inspector for vulnerability scanning.",
+            }
+        print(f"inspector_enabled: Unexpected error — {error_msg}")
         return None
 
 
@@ -113,10 +144,7 @@ def security_hub_enabled(session):
             "recommendation": "Enable AWS Security Hub to aggregate findings.",
         }
     except client.exceptions.InvalidAccessException as e:
-        print("error in security hub with InvalidAccessException: ", str(e))
-
-        #
-        # scan_meta_data["affected"] += 1
+        print(f"security_hub_enabled: Not enabled in {session.region_name} — marking as not enabled")
         return {
             "check_name": "AWS Security Hub",
             "service": "SecurityHub",
@@ -124,11 +152,22 @@ def security_hub_enabled(session):
             "severity_score": 75,
             "severity_level": "Medium",
             "is_enabled": "No",
-            # "resources_affected": ["Security Hub Not Found"],
             "recommendation": "Enable Security Hub in this region.",
         }
     except ClientError as e:
-        print("error in security hub: ", str(e))
+        error_code = e.response["Error"]["Code"]
+        if error_code == "SubscriptionRequiredException":
+            print(f"security_hub_enabled: Service not subscribed in {session.region_name} — marking as not enabled")
+            return {
+                "check_name": "AWS Security Hub",
+                "service": "SecurityHub",
+                "problem_statement": "Security Hub has never been enabled in this region.",
+                "severity_score": 75,
+                "severity_level": "Medium",
+                "is_enabled": "No",
+                "recommendation": "Enable AWS Security Hub to aggregate findings.",
+            }
+        print(f"security_hub_enabled: Unexpected error — {error_code}")
         return None
 
 
