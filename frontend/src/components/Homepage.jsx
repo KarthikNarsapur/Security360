@@ -144,7 +144,7 @@ function HomePage({
                 For threat detection, Security360 ingests CloudTrail audit logs and VPC Flow Logs, applies feature engineering (TF-IDF vectorization, keyword flagging for suspicious terms like "delete", "terminate", "escalate", "unauthorized"), and runs three independent anomaly detection models. A finding is flagged only when at least two of the three models agree, reducing false positives significantly. The flagged anomalies are then analyzed by an AI service to generate human-readable security findings with context and remediation guidance.
               </p>
               <p>
-                Reports can be exported as JSON, CSV, or Excel formats. The platform also supports Kubernetes security scanning for EKS clusters, website security scanning against OWASP Top 10, and integration with Site24x7 for infrastructure monitoring dashboards.
+                Reports can be exported as JSON, Word, or Excel formats. The platform also supports Kubernetes security scanning for EKS clusters, website security scanning against OWASP Top 10, and integration with Site24x7 for infrastructure monitoring dashboards.
               </p>
             </div>
           </Section>
@@ -182,7 +182,7 @@ function HomePage({
               To start scanning, connect your cloud accounts below. Security360 uses read-only access — it never modifies your infrastructure. You can add multiple accounts from each cloud provider.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-5 rounded-xl border-2 border-dashed border-orange-300 dark:border-orange-700 hover:border-orange-500 transition-colors">
+              <div className="p-5 rounded-xl border-2 border-dashed border-orange-300 dark:border-orange-400 hover:border-orange-500 transition-colors">
                 <div className="flex items-center gap-3 mb-3">
                   <FaAws className="w-6 h-6 text-orange-600" />
                   <h4 className="font-semibold text-slate-800 dark:text-white">AWS Account</h4>
