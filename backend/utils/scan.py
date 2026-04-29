@@ -29,6 +29,12 @@ from modules.AwsChecks import (
     data_sensitivity,
     runtime_behavior,
     unified_risk_engine,
+    cloudfront_checks,
+    eks_checks,
+    redshift_checks,
+    opensearch_checks,
+    sqs_checks,
+    ecr_checks,
 )
 from Model.model import AccessTokenModel
 from utils.upload_to_s3 import upload_to_s3
@@ -67,6 +73,11 @@ def run_checks(session, scan_meta_data={}, security_services_scan={}):
     security_services_scan["WAF on API Gateway"] = security_checks.check_waf_on_api_gateway(session)
     security_services_scan["Unresolved Findings"] = security_checks.check_unresolved_security_findings(session)
     security_services_scan["Automated Remediation"] = security_checks.check_automated_remediation(session)
+    security_services_scan["KMS Key Rotation"] = security_checks.check_kms_key_rotation(session)
+    security_services_scan["KMS Pending Deletion"] = security_checks.check_kms_pending_deletion(session)
+    security_services_scan["Amazon Macie"] = security_checks.check_macie_enabled(session)
+    security_services_scan["EventBridge Security Rules"] = security_checks.check_eventbridge_security_rules(session)
+    security_services_scan["ACM Expiring Certificates"] = security_checks.check_acm_expiring_certs(session)
     return {
         "default_vpcs": vpc_checks.check_default_vpcs(session, scan_meta_data),
         "open_security_groups": ec2_checks.check_open_security_groups(
@@ -197,6 +208,38 @@ def run_checks(session, scan_meta_data={}, security_services_scan={}):
         "runtime_behavior": runtime_behavior.analyze_runtime_behavior(
             session, scan_meta_data
         ),
+        "cloudfront_default_cert": cloudfront_checks.check_cloudfront_default_cert(session, scan_meta_data),
+        "cloudfront_waf": cloudfront_checks.check_cloudfront_waf(session, scan_meta_data),
+        "cloudfront_min_tls": cloudfront_checks.check_cloudfront_min_tls(session, scan_meta_data),
+        "cloudfront_origin_protocol": cloudfront_checks.check_cloudfront_origin_protocol(session, scan_meta_data),
+        "eks_public_endpoint": eks_checks.check_eks_public_endpoint(session, scan_meta_data),
+        "eks_version_eol": eks_checks.check_eks_version_eol(session, scan_meta_data),
+        "eks_logging": eks_checks.check_eks_logging(session, scan_meta_data),
+        "eks_secrets_encryption": eks_checks.check_eks_secrets_encryption(session, scan_meta_data),
+        "redshift_encryption": redshift_checks.check_redshift_encryption(session, scan_meta_data),
+        "redshift_public": redshift_checks.check_redshift_public(session, scan_meta_data),
+        "redshift_audit_logging": redshift_checks.check_redshift_audit_logging(session, scan_meta_data),
+        "opensearch_encryption": opensearch_checks.check_opensearch_encryption(session, scan_meta_data),
+        "opensearch_public": opensearch_checks.check_opensearch_public(session, scan_meta_data),
+        "opensearch_node_encryption": opensearch_checks.check_opensearch_node_encryption(session, scan_meta_data),
+        "sqs_encryption": sqs_checks.check_sqs_encryption(session, scan_meta_data),
+        "sqs_wildcard_policy": sqs_checks.check_sqs_wildcard_policy(session, scan_meta_data),
+        "ecr_scan_on_push": ecr_checks.check_ecr_scan_on_push(session, scan_meta_data),
+        "ecr_lifecycle_policy": ecr_checks.check_ecr_lifecycle_policy(session, scan_meta_data),
+        "ec2_imdsv2": ec2_checks.check_ec2_imdsv2(session, scan_meta_data),
+        "ebs_default_encryption": ec2_checks.check_ebs_default_encryption(session, scan_meta_data),
+        "public_ebs_snapshots": ec2_checks.check_public_ebs_snapshots(session, scan_meta_data),
+        "stopped_instances": ec2_checks.check_stopped_instances(session, scan_meta_data),
+        "unattached_ebs_volumes": ec2_checks.check_unattached_ebs_volumes(session, scan_meta_data),
+        "rds_auto_minor_upgrade": rds_checks.check_rds_auto_minor_upgrade(session, scan_meta_data),
+        "rds_instance_deletion_protection": rds_checks.check_rds_instance_deletion_protection(session, scan_meta_data),
+        "lambda_public_access": lambda_fun.check_lambda_public_access(session, scan_meta_data),
+        "lambda_deprecated_runtime": lambda_fun.check_lambda_deprecated_runtime(session, scan_meta_data),
+        "dynamodb_cmk_encryption": dynamodb.check_dynamodb_cmk_encryption(session, scan_meta_data),
+        "vpc_flow_logs": vpc_checks.check_vpc_flow_logs(session, scan_meta_data),
+        "subnets_auto_assign_public_ip": vpc_checks.check_subnets_auto_assign_public_ip(session, scan_meta_data),
+        "sns_encryption": sns_checks.check_sns_encryption(session, scan_meta_data),
+        "sns_wildcard_policy": sns_checks.check_sns_wildcard_policy(session, scan_meta_data),
         
     }
 
@@ -325,6 +368,30 @@ def run_global_services_checks(session, scan_meta_data_global_services):
         "data_sensitivity": data_sensitivity.analyze_data_sensitivity(
             session=session,
             scan_meta_data_global_services=scan_meta_data_global_services,
+        ),
+        "iam_user_inline_policies": iam_checks.check_iam_user_inline_policies(
+            iam=iam, scan_meta_data_global_services=scan_meta_data_global_services, users=users,
+        ),
+        "iam_group_inline_policies": iam_checks.check_iam_group_inline_policies(
+            iam=iam, scan_meta_data_global_services=scan_meta_data_global_services,
+        ),
+        "root_access_keys_exist": iam_checks.check_root_access_keys_exist(
+            iam=iam, scan_meta_data_global_services=scan_meta_data_global_services, account_summary=account_summary,
+        ),
+        "support_role_exists": iam_checks.check_support_role_exists(
+            iam=iam, scan_meta_data_global_services=scan_meta_data_global_services, roles=roles,
+        ),
+        "s3_default_encryption": s3_checks.check_s3_default_encryption(
+            session, scan_meta_data_global_services,
+        ),
+        "s3_versioning": s3_checks.check_s3_versioning(
+            session, scan_meta_data_global_services,
+        ),
+        "s3_access_logging": s3_checks.check_s3_access_logging(
+            session, scan_meta_data_global_services,
+        ),
+        "s3_ssl_enforcement": s3_checks.check_s3_ssl_enforcement(
+            session, scan_meta_data_global_services,
         ),
     }
 

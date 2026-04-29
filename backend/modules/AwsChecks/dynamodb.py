@@ -131,3 +131,23 @@ def check_dynamodb_pitr(session, scan_meta_data):
         "recommendation": "Enable point-in-time recovery on all DynamoDB tables to allow restoration to any point within the last 35 days.",
         "additional_info": {"total_scanned": len(all_tables), "affected": len(resources)},
     }
+
+
+def check_dynamodb_cmk_encryption(session, scan_meta_data):
+    print("check_dynamodb_cmk_encryption")
+    dynamodb = session.client("dynamodb")
+    resources = []
+    tables = dynamodb.list_tables().get("TableNames", [])
+    for table in tables:
+        try:
+            desc = dynamodb.describe_table(TableName=table)["Table"]
+            sse = desc.get("SSEDescription", {})
+            if not sse or sse.get("SSEType") != "KMS":
+                resources.append({"resource_name": table, "sse_type": sse.get("SSEType", "DEFAULT"), "issue": "Not using customer-managed KMS key."})
+        except Exception: pass
+
+    scan_meta_data["total_scanned"] += len(tables)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "DynamoDB" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("DynamoDB")
+    return {"check_name": "DynamoDB CMK Encryption", "service": "DynamoDB", "problem_statement": "DynamoDB tables not using customer-managed KMS keys.", "severity_score": 50, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable CMK encryption for sensitive tables.", "additional_info": {"total_scanned": len(tables), "affected": len(resources)}}

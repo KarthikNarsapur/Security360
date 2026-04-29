@@ -392,3 +392,37 @@ def check_vpc_endpoints(session, scan_meta_data):
         "recommendation": "Create Gateway VPC endpoints for S3 and DynamoDB to keep traffic private and reduce data transfer costs.",
         "additional_info": {"total_scanned": len(non_default_vpcs), "affected": len(resources_affected)},
     }
+
+
+def check_vpc_flow_logs(session, scan_meta_data):
+    print("check_vpc_flow_logs")
+    ec2 = session.client("ec2")
+    resources = []
+    vpcs = ec2.describe_vpcs().get("Vpcs", [])
+    for vpc in vpcs:
+        vpc_id = vpc["VpcId"]
+        flow_logs = ec2.describe_flow_logs(Filters=[{"Name": "resource-id", "Values": [vpc_id]}]).get("FlowLogs", [])
+        if not flow_logs:
+            resources.append({"resource_name": vpc_id, "cidr": vpc.get("CidrBlock"), "is_default": vpc.get("IsDefault"), "issue": "No VPC flow logs enabled."})
+
+    scan_meta_data["total_scanned"] += len(vpcs)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "VPC" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("VPC")
+    return {"check_name": "VPC Flow Logs", "service": "VPC", "problem_statement": "VPCs do not have flow logs enabled.", "severity_score": 60, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable VPC flow logs for all VPCs.", "additional_info": {"total_scanned": len(vpcs), "affected": len(resources)}}
+
+
+def check_subnets_auto_assign_public_ip(session, scan_meta_data):
+    print("check_subnets_auto_assign_public_ip")
+    ec2 = session.client("ec2")
+    resources = []
+    subnets = ec2.describe_subnets().get("Subnets", [])
+    for s in subnets:
+        if s.get("MapPublicIpOnLaunch"):
+            resources.append({"resource_name": s["SubnetId"], "vpc_id": s.get("VpcId"), "az": s.get("AvailabilityZone"), "cidr": s.get("CidrBlock"), "issue": "Auto-assigns public IPs on launch."})
+
+    scan_meta_data["total_scanned"] += len(subnets)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "VPC" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("VPC")
+    return {"check_name": "Subnets Auto-Assign Public IP", "service": "VPC", "problem_statement": "Subnets auto-assign public IPs to launched instances.", "severity_score": 50, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Disable auto-assign public IP on private subnets.", "additional_info": {"total_scanned": len(subnets), "affected": len(resources)}}

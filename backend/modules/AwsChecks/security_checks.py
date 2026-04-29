@@ -469,21 +469,18 @@ def check_shield_advanced(session):
     resources = []
     try:
         shield = session.client("shield", region_name="us-east-1")
-        subscription = shield.describe_subscription()
+        shield.describe_subscription()
         # If we get here, Shield Advanced is active
-    except shield.exceptions.ResourceNotFoundException:
-        resources.append({
-            "resource_name": "AWS Shield Advanced",
-            "issue": "Shield Advanced is not subscribed.",
-        })
     except Exception as e:
-        if "ResourceNotFoundException" in str(e) or "SubscriptionNotFoundException" in str(e):
+        error_str = str(e)
+        if any(k in error_str for k in ("ResourceNotFoundException", "SubscriptionNotFoundException", "SubscriptionRequiredException")):
+            print(f"check_shield_advanced: Shield Advanced not subscribed — marking as not enabled")
             resources.append({
                 "resource_name": "AWS Shield Advanced",
                 "issue": "Shield Advanced is not subscribed.",
             })
         else:
-            print(f"Error checking Shield Advanced: {e}")
+            print(f"check_shield_advanced: Unexpected error — {error_str}")
 
     return {
         "check_name": "AWS Shield Advanced",
@@ -676,8 +673,14 @@ def check_unresolved_security_findings(session):
                     "finding_count": len(findings),
                     "issue": f"{len(findings)} unresolved HIGH/CRITICAL GuardDuty finding(s).",
                 })
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        if code == "SubscriptionRequiredException":
+            print(f"check_unresolved_security_findings: GuardDuty not subscribed in {session.region_name}")
+        else:
+            print(f"check_unresolved_security_findings: GuardDuty error — {code}")
     except Exception as e:
-        print(f"Error checking GuardDuty findings: {e}")
+        print(f"check_unresolved_security_findings: GuardDuty error — {e}")
 
     return {
         "check_name": "Unresolved Security Findings",
@@ -729,3 +732,83 @@ def check_automated_remediation(session):
         "resources_affected": resources,
         "recommendation": "Configure auto-remediation on critical Config Rules using SSM Automation documents or Lambda functions.",
     }
+
+
+def check_kms_key_rotation(session):
+    print("check_kms_key_rotation")
+    kms = session.client("kms")
+    resources = []
+    for page in kms.get_paginator("list_keys").paginate():
+        for key in page.get("Keys", []):
+            try:
+                meta = kms.describe_key(KeyId=key["KeyId"])["KeyMetadata"]
+                if meta.get("KeyManager") != "CUSTOMER" or meta.get("KeyState") != "Enabled": continue
+                if not kms.get_key_rotation_status(KeyId=key["KeyId"]).get("KeyRotationEnabled", False):
+                    resources.append({"resource_name": key["KeyId"], "description": meta.get("Description", ""), "issue": "Key rotation not enabled."})
+            except Exception: pass
+
+    return {"check_name": "KMS Key Rotation", "service": "KMS", "problem_statement": "Customer-managed KMS keys do not have automatic rotation enabled.", "severity_score": 55, "severity_level": "Medium", "is_enabled": "Yes" if not resources else "No", "resources_affected": resources, "recommendation": "Enable automatic key rotation."}
+
+
+def check_kms_pending_deletion(session):
+    print("check_kms_pending_deletion")
+    kms = session.client("kms")
+    resources = []
+    for page in kms.get_paginator("list_keys").paginate():
+        for key in page.get("Keys", []):
+            try:
+                meta = kms.describe_key(KeyId=key["KeyId"])["KeyMetadata"]
+                if meta.get("KeyState") == "PendingDeletion":
+                    resources.append({"resource_name": key["KeyId"], "description": meta.get("Description", ""), "deletion_date": str(meta.get("DeletionDate", "")), "issue": "Key is pending deletion."})
+            except Exception: pass
+
+    return {"check_name": "KMS Keys Pending Deletion", "service": "KMS", "problem_statement": "KMS keys are scheduled for deletion.", "severity_score": 70, "severity_level": "High", "is_enabled": "Yes" if not resources else "No", "resources_affected": resources, "recommendation": "Cancel deletion if keys are still in use."}
+
+
+def check_macie_enabled(session):
+    print("check_macie_enabled")
+    resources = []
+    try:
+        macie = session.client("macie2")
+        macie.get_macie_session()
+    except Exception as e:
+        if "Macie is not enabled" in str(e) or "AccessDeniedException" in str(e) or "not enabled" in str(e).lower():
+            resources.append({"resource_name": "Amazon Macie", "issue": "Macie is not enabled."})
+
+    return {"check_name": "Amazon Macie Enabled", "service": "Macie", "problem_statement": "Amazon Macie is not enabled for S3 data discovery.", "severity_score": 45, "severity_level": "Medium", "is_enabled": "Yes" if not resources else "No", "resources_affected": resources, "recommendation": "Enable Macie for automated sensitive data discovery."}
+
+
+def check_eventbridge_security_rules(session):
+    print("check_eventbridge_security_rules")
+    resources = []
+    try:
+        events = session.client("events")
+        rules = events.list_rules().get("Rules", [])
+        security_patterns = ["guardduty", "securityhub", "config", "inspector", "macie"]
+        has_security_rule = any(any(p in r.get("Name", "").lower() or p in str(r.get("EventPattern", "")).lower() for p in security_patterns) for r in rules)
+        if not has_security_rule:
+            resources.append({"resource_name": "EventBridge Rules", "total_rules": len(rules), "issue": "No EventBridge rules for security service events."})
+    except Exception as e:
+        print(f"Error checking EventBridge: {e}")
+
+    return {"check_name": "EventBridge Security Rules", "service": "EventBridge", "problem_statement": "No EventBridge rules for security service events.", "severity_score": 30, "severity_level": "Low", "is_enabled": "Yes" if not resources else "No", "resources_affected": resources, "recommendation": "Create EventBridge rules for GuardDuty, Config, and Security Hub events."}
+
+
+def check_acm_expiring_certs(session):
+    print("check_acm_expiring_certs")
+    from datetime import datetime, timezone, timedelta
+    resources = []
+    try:
+        acm = session.client("acm")
+        certs = acm.list_certificates().get("CertificateSummaryList", [])
+        threshold = datetime.now(timezone.utc) + timedelta(days=30)
+        for cert in certs:
+            if cert.get("Status") != "ISSUED": continue
+            not_after = cert.get("NotAfter")
+            if not_after and not_after < threshold:
+                days_left = (not_after - datetime.now(timezone.utc)).days
+                resources.append({"resource_name": cert.get("DomainName"), "certificate_arn": cert.get("CertificateArn"), "expires_in_days": days_left, "issue": f"Certificate expires in {days_left} days."})
+    except Exception as e:
+        print(f"Error checking ACM certs: {e}")
+
+    return {"check_name": "ACM Certificates Expiring Soon", "service": "ACM", "problem_statement": "ACM certificates are expiring within 30 days.", "severity_score": 75, "severity_level": "High", "is_enabled": "Yes" if not resources else "No", "resources_affected": resources, "recommendation": "Renew or replace expiring certificates."}

@@ -637,3 +637,91 @@ def check_efs_security_groups(session, scan_meta_data):
         "recommendation": "Restrict EFS mount target security groups to specific VPC CIDR ranges or application security groups only.",
         "additional_info": {"total_scanned": len(file_systems), "affected": len(resources)},
     }
+
+
+def check_ec2_imdsv2(session, scan_meta_data):
+    print("check_ec2_imdsv2")
+    ec2 = session.client("ec2")
+    resources = []
+    all_inst = []
+    for res in ec2.describe_instances().get("Reservations", []):
+        for inst in res["Instances"]:
+            if inst.get("State", {}).get("Name") == "terminated": continue
+            all_inst.append(inst)
+            if inst.get("MetadataOptions", {}).get("HttpTokens") != "required":
+                name = next((t["Value"] for t in inst.get("Tags", []) if t["Key"] == "Name"), "")
+                resources.append({"resource_name": inst["InstanceId"], "instance_name": name, "http_tokens": inst.get("MetadataOptions", {}).get("HttpTokens", "optional"), "issue": "IMDSv2 not enforced."})
+
+    scan_meta_data["total_scanned"] += len(all_inst)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["High"] += len(resources)
+    if "EC2" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("EC2")
+    return {"check_name": "EC2 IMDSv2 Not Enforced", "service": "EC2", "problem_statement": "EC2 instances do not require IMDSv2.", "severity_score": 75, "severity_level": "High", "resources_affected": resources, "recommendation": "Set HttpTokens to 'required' for all instances.", "additional_info": {"total_scanned": len(all_inst), "affected": len(resources)}}
+
+
+def check_ebs_default_encryption(session, scan_meta_data):
+    print("check_ebs_default_encryption")
+    ec2 = session.client("ec2")
+    resources = []
+    enabled = ec2.get_ebs_encryption_by_default().get("EbsEncryptionByDefault", False)
+    if not enabled:
+        resources.append({"resource_name": "EBS Default Encryption", "issue": "Account-level EBS default encryption is not enabled."})
+
+    scan_meta_data["total_scanned"] += 1
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "EBS" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("EBS")
+    return {"check_name": "EBS Default Encryption", "service": "EC2", "problem_statement": "EBS default encryption is not enabled at account level.", "severity_score": 60, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable EBS encryption by default.", "additional_info": {"total_scanned": 1, "affected": len(resources)}}
+
+
+def check_public_ebs_snapshots(session, scan_meta_data):
+    print("check_public_ebs_snapshots")
+    ec2 = session.client("ec2")
+    sts = session.client("sts")
+    resources = []
+    account_id = sts.get_caller_identity()["Account"]
+    snaps = ec2.describe_snapshots(OwnerIds=[account_id]).get("Snapshots", [])
+    for snap in snaps:
+        try:
+            attrs = ec2.describe_snapshot_attribute(SnapshotId=snap["SnapshotId"], Attribute="createVolumePermission")
+            if any(p.get("Group") == "all" for p in attrs.get("CreateVolumePermissions", [])):
+                resources.append({"resource_name": snap["SnapshotId"], "volume_id": snap.get("VolumeId"), "issue": "Snapshot is publicly shared."})
+        except Exception: pass
+
+    scan_meta_data["total_scanned"] += len(snaps)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["High"] += len(resources)
+    if "EBS" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("EBS")
+    return {"check_name": "Public EBS Snapshots", "service": "EC2", "problem_statement": "EBS snapshots are publicly shared.", "severity_score": 85, "severity_level": "High", "resources_affected": resources, "recommendation": "Remove public sharing from EBS snapshots.", "additional_info": {"total_scanned": len(snaps), "affected": len(resources)}}
+
+
+def check_stopped_instances(session, scan_meta_data):
+    print("check_stopped_instances")
+    ec2 = session.client("ec2")
+    resources = []
+    for res in ec2.describe_instances(Filters=[{"Name": "instance-state-name", "Values": ["stopped"]}]).get("Reservations", []):
+        for inst in res["Instances"]:
+            reason = inst.get("StateTransitionReason", "")
+            name = next((t["Value"] for t in inst.get("Tags", []) if t["Key"] == "Name"), "")
+            resources.append({"resource_name": inst["InstanceId"], "instance_name": name, "instance_type": inst.get("InstanceType"), "stopped_reason": reason, "issue": "Instance is in stopped state."})
+
+    scan_meta_data["total_scanned"] += len(resources)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Low"] += len(resources)
+    if "EC2" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("EC2")
+    return {"check_name": "Stopped EC2 Instances", "service": "EC2", "problem_statement": "EC2 instances are in stopped state, wasting resources.", "severity_score": 20, "severity_level": "Low", "resources_affected": resources, "recommendation": "Terminate or restart stopped instances.", "additional_info": {"total_scanned": len(resources), "affected": len(resources)}}
+
+
+def check_unattached_ebs_volumes(session, scan_meta_data):
+    print("check_unattached_ebs_volumes")
+    ec2 = session.client("ec2")
+    resources = []
+    vols = ec2.describe_volumes(Filters=[{"Name": "status", "Values": ["available"]}]).get("Volumes", [])
+    for vol in vols:
+        resources.append({"resource_name": vol["VolumeId"], "size_gb": vol.get("Size"), "volume_type": vol.get("VolumeType"), "create_time": str(vol.get("CreateTime")), "issue": "Volume is not attached to any instance."})
+
+    scan_meta_data["total_scanned"] += len(vols)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Low"] += len(resources)
+    if "EBS" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("EBS")
+    return {"check_name": "Unattached EBS Volumes", "service": "EC2", "problem_statement": "EBS volumes are not attached to any instance.", "severity_score": 15, "severity_level": "Low", "resources_affected": resources, "recommendation": "Delete unattached volumes or attach them.", "additional_info": {"total_scanned": len(vols), "affected": len(resources)}}

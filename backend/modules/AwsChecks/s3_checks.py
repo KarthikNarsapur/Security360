@@ -212,3 +212,84 @@ def cross_account_bucket_sharing(session, scan_meta_data_global_services):
         "recommendation": "Review cross-account bucket sharing. Remove access for unknown accounts and ensure shared accounts are authorized.",
         "additional_info": {"total_scanned": len(buckets), "affected": len(shared_buckets)},
     }
+
+
+def check_s3_default_encryption(session, scan_meta_data_global_services):
+    print("check_s3_default_encryption")
+    s3 = session.client("s3")
+    resources = []
+    buckets = s3.list_buckets().get("Buckets", [])
+    for b in buckets:
+        try:
+            enc = s3.get_bucket_encryption(Bucket=b["Name"])
+            if not enc.get("ServerSideEncryptionConfiguration", {}).get("Rules"):
+                resources.append({"resource_name": b["Name"], "issue": "No default encryption."})
+        except Exception:
+            resources.append({"resource_name": b["Name"], "issue": "No default encryption configured."})
+
+    scan_meta_data_global_services["total_scanned"] += len(buckets)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["High"] += len(resources)
+    if "S3" not in scan_meta_data_global_services["services_scanned"]: scan_meta_data_global_services["services_scanned"].append("S3")
+    return {"check_name": "S3 Default Encryption", "service": "S3", "problem_statement": "S3 buckets lack default encryption.", "severity_score": 80, "severity_level": "High", "resources_affected": resources, "recommendation": "Enable default encryption (AES-256 or KMS).", "additional_info": {"total_scanned": len(buckets), "affected": len(resources)}}
+
+
+def check_s3_versioning(session, scan_meta_data_global_services):
+    print("check_s3_versioning")
+    s3 = session.client("s3")
+    resources = []
+    buckets = s3.list_buckets().get("Buckets", [])
+    for b in buckets:
+        try:
+            ver = s3.get_bucket_versioning(Bucket=b["Name"])
+            if ver.get("Status") != "Enabled":
+                resources.append({"resource_name": b["Name"], "status": ver.get("Status", "Disabled"), "issue": "Versioning not enabled."})
+        except Exception: pass
+
+    scan_meta_data_global_services["total_scanned"] += len(buckets)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Medium"] += len(resources)
+    if "S3" not in scan_meta_data_global_services["services_scanned"]: scan_meta_data_global_services["services_scanned"].append("S3")
+    return {"check_name": "S3 Versioning", "service": "S3", "problem_statement": "S3 buckets do not have versioning enabled.", "severity_score": 55, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable versioning on all buckets.", "additional_info": {"total_scanned": len(buckets), "affected": len(resources)}}
+
+
+def check_s3_access_logging(session, scan_meta_data_global_services):
+    print("check_s3_access_logging")
+    s3 = session.client("s3")
+    resources = []
+    buckets = s3.list_buckets().get("Buckets", [])
+    for b in buckets:
+        try:
+            log = s3.get_bucket_logging(Bucket=b["Name"]).get("LoggingEnabled")
+            if not log:
+                resources.append({"resource_name": b["Name"], "issue": "Access logging not enabled."})
+        except Exception: pass
+
+    scan_meta_data_global_services["total_scanned"] += len(buckets)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Medium"] += len(resources)
+    if "S3" not in scan_meta_data_global_services["services_scanned"]: scan_meta_data_global_services["services_scanned"].append("S3")
+    return {"check_name": "S3 Access Logging", "service": "S3", "problem_statement": "S3 buckets do not have access logging enabled.", "severity_score": 50, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable server access logging.", "additional_info": {"total_scanned": len(buckets), "affected": len(resources)}}
+
+
+def check_s3_ssl_enforcement(session, scan_meta_data_global_services):
+    print("check_s3_ssl_enforcement")
+    import json
+    s3 = session.client("s3")
+    resources = []
+    buckets = s3.list_buckets().get("Buckets", [])
+    for b in buckets:
+        try:
+            policy_str = s3.get_bucket_policy(Bucket=b["Name"]).get("Policy", "{}")
+            policy = json.loads(policy_str)
+            has_ssl = any("SecureTransport" in str(stmt.get("Condition", {})) for stmt in policy.get("Statement", []))
+            if not has_ssl:
+                resources.append({"resource_name": b["Name"], "issue": "No SSL enforcement in bucket policy."})
+        except Exception:
+            resources.append({"resource_name": b["Name"], "issue": "No bucket policy to enforce SSL."})
+
+    scan_meta_data_global_services["total_scanned"] += len(buckets)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Medium"] += len(resources)
+    if "S3" not in scan_meta_data_global_services["services_scanned"]: scan_meta_data_global_services["services_scanned"].append("S3")
+    return {"check_name": "S3 SSL/TLS Enforcement", "service": "S3", "problem_statement": "S3 buckets do not enforce SSL/TLS.", "severity_score": 60, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Add bucket policy denying non-SSL requests.", "additional_info": {"total_scanned": len(buckets), "affected": len(resources)}}

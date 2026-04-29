@@ -339,3 +339,35 @@ def check_rds_security_groups_restricted(session, scan_meta_data):
         "recommendation": "Restrict RDS security groups to specific application subnets or IP ranges only.",
         "additional_info": {"total_scanned": len(dbs), "affected": len(resources)},
     }
+
+
+def check_rds_auto_minor_upgrade(session, scan_meta_data):
+    print("check_rds_auto_minor_upgrade")
+    rds = session.client("rds")
+    resources = []
+    dbs = rds.describe_db_instances().get("DBInstances", [])
+    for db in dbs:
+        if not db.get("AutoMinorVersionUpgrade", True):
+            resources.append({"resource_name": db.get("DBInstanceIdentifier"), "engine": db.get("Engine"), "issue": "Auto minor version upgrade disabled."})
+
+    scan_meta_data["total_scanned"] += len(dbs)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "RDS" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("RDS")
+    return {"check_name": "RDS Auto Minor Version Upgrade", "service": "RDS", "problem_statement": "RDS instances have auto minor version upgrade disabled.", "severity_score": 50, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable auto minor version upgrade.", "additional_info": {"total_scanned": len(dbs), "affected": len(resources)}}
+
+
+def check_rds_instance_deletion_protection(session, scan_meta_data):
+    print("check_rds_instance_deletion_protection")
+    rds = session.client("rds")
+    resources = []
+    dbs = rds.describe_db_instances().get("DBInstances", [])
+    for db in dbs:
+        if not db.get("DeletionProtection", False):
+            resources.append({"resource_name": db.get("DBInstanceIdentifier"), "engine": db.get("Engine"), "issue": "Deletion protection disabled."})
+
+    scan_meta_data["total_scanned"] += len(dbs)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "RDS" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("RDS")
+    return {"check_name": "RDS Instance Deletion Protection", "service": "RDS", "problem_statement": "RDS instances lack deletion protection.", "severity_score": 55, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Enable deletion protection on production instances.", "additional_info": {"total_scanned": len(dbs), "affected": len(resources)}}

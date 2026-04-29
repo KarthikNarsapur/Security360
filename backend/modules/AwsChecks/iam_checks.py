@@ -896,3 +896,86 @@ def check_break_glass_role(iam, scan_meta_data_global_services, roles):
         "recommendation": "Create a break-glass IAM role with AdministratorAccess, MFA condition in trust policy, and CloudTrail monitoring.",
         "additional_info": {"total_scanned": 1, "affected": len(resources_affected)},
     }
+
+
+def check_iam_user_inline_policies(iam, scan_meta_data_global_services, users):
+    print("check_iam_user_inline_policies")
+    resources = []
+    for user in users:
+        name = user["UserName"]
+        try:
+            inline = iam.list_user_policies(UserName=name).get("PolicyNames", [])
+            if inline:
+                resources.append({"resource_name": name, "inline_policy_count": len(inline), "policies": inline[:5], "issue": f"{len(inline)} inline policy(ies) attached."})
+        except Exception as e:
+            print(f"Error checking inline policies for {name}: {e}")
+
+    scan_meta_data_global_services["total_scanned"] += len(users)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Medium"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "IAM Users with Inline Policies", "service": "IAM", "problem_statement": "IAM users have inline policies instead of managed policies.", "severity_score": 45, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Replace inline policies with managed policies attached via groups.", "additional_info": {"total_scanned": len(users), "affected": len(resources)}}
+
+
+def check_iam_group_inline_policies(iam, scan_meta_data_global_services):
+    print("check_iam_group_inline_policies")
+    resources = []
+    groups = iam.list_groups().get("Groups", [])
+    for group in groups:
+        name = group["GroupName"]
+        try:
+            inline = iam.list_group_policies(GroupName=name).get("PolicyNames", [])
+            if inline:
+                resources.append({"resource_name": name, "inline_policy_count": len(inline), "issue": f"{len(inline)} inline policy(ies)."})
+        except Exception:
+            pass
+
+    scan_meta_data_global_services["total_scanned"] += len(groups)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Low"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "IAM Groups with Inline Policies", "service": "IAM", "problem_statement": "IAM groups have inline policies.", "severity_score": 30, "severity_level": "Low", "resources_affected": resources, "recommendation": "Replace inline policies with managed policies.", "additional_info": {"total_scanned": len(groups), "affected": len(resources)}}
+
+
+def check_root_access_keys_exist(iam, scan_meta_data_global_services, account_summary):
+    print("check_root_access_keys_exist")
+    resources = []
+    if account_summary.get("AccountAccessKeysPresent", 0) > 0:
+        resources.append({"resource_name": "Root Account", "issue": "Root account has active access keys.", "last_updated": datetime.now(IST).isoformat()})
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Critical"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "Root Account Access Keys Exist", "service": "IAM", "problem_statement": "Root account has access keys, which should never exist.", "severity_score": 95, "severity_level": "Critical", "resources_affected": resources, "recommendation": "Delete all root account access keys immediately.", "additional_info": {"total_scanned": 1, "affected": len(resources)}}
+
+
+def check_support_role_exists(iam, scan_meta_data_global_services, roles):
+    print("check_support_role_exists")
+    resources = []
+    found = False
+    for role in roles:
+        try:
+            attached = iam.list_attached_role_policies(RoleName=role["RoleName"]).get("AttachedPolicies", [])
+            if any(p.get("PolicyName") == "AWSSupportAccess" for p in attached):
+                found = True
+                break
+        except Exception:
+            pass
+
+    if not found:
+        resources.append({"resource_name": "AWS Support Role", "issue": "No IAM role with AWSSupportAccess policy exists."})
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Low"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "AWS Support Role Exists", "service": "IAM", "problem_statement": "No IAM role with AWSSupportAccess policy for incident management.", "severity_score": 25, "severity_level": "Low", "resources_affected": resources, "recommendation": "Create an IAM role with AWSSupportAccess managed policy.", "additional_info": {"total_scanned": 1, "affected": len(resources)}}

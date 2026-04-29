@@ -220,3 +220,41 @@ def check_lambda_vpc_enabled(session, scan_meta_data):
         "recommendation": "Attach Lambda functions that access sensitive resources (databases, internal APIs) to a VPC with appropriate subnets and security groups.",
         "additional_info": {"total_scanned": len(functions), "affected": len(resources_affected)},
     }
+
+
+def check_lambda_public_access(session, scan_meta_data):
+    print("check_lambda_public_access")
+    lambda_client = session.client("lambda")
+    resources = []
+    functions = lambda_client.list_functions().get("Functions", [])
+    for fn in functions:
+        try:
+            policy = lambda_client.get_policy(FunctionName=fn["FunctionName"])
+            if '"AWS":"*"' in policy.get("Policy", "") or '"Principal":"*"' in policy.get("Policy", ""):
+                resources.append({"resource_name": fn["FunctionName"], "runtime": fn.get("Runtime", "N/A"), "issue": "Function policy allows public access."})
+        except lambda_client.exceptions.ResourceNotFoundException: pass
+        except Exception: pass
+
+    scan_meta_data["total_scanned"] += len(functions)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["High"] += len(resources)
+    if "Lambda" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("Lambda")
+    return {"check_name": "Lambda Public Access", "service": "Lambda", "problem_statement": "Lambda functions allow public access via resource policy.", "severity_score": 80, "severity_level": "High", "resources_affected": resources, "recommendation": "Restrict Lambda policies to specific principals.", "additional_info": {"total_scanned": len(functions), "affected": len(resources)}}
+
+
+def check_lambda_deprecated_runtime(session, scan_meta_data):
+    print("check_lambda_deprecated_runtime")
+    lambda_client = session.client("lambda")
+    resources = []
+    functions = lambda_client.list_functions().get("Functions", [])
+    supported = ["python3.10", "python3.11", "python3.12", "python3.13", "nodejs18.x", "nodejs20.x", "nodejs22.x", "java11", "java17", "java21", "dotnet6", "dotnet8", "ruby3.2", "ruby3.3"]
+    for fn in functions:
+        runtime = fn.get("Runtime", "")
+        if runtime and runtime not in supported:
+            resources.append({"resource_name": fn["FunctionName"], "runtime": runtime, "issue": f"Deprecated runtime: {runtime}."})
+
+    scan_meta_data["total_scanned"] += len(functions)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["High"] += len(resources)
+    if "Lambda" not in scan_meta_data["services_scanned"]: scan_meta_data["services_scanned"].append("Lambda")
+    return {"check_name": "Lambda Deprecated Runtime", "service": "Lambda", "problem_statement": "Lambda functions use deprecated runtimes.", "severity_score": 70, "severity_level": "High", "resources_affected": resources, "recommendation": "Upgrade to supported runtimes.", "additional_info": {"total_scanned": len(functions), "affected": len(resources)}}
