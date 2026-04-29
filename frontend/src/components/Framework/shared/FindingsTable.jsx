@@ -13,6 +13,24 @@ import {
 } from "../../../utils/frameworkUtils";
 import { useState } from "react";
 
+const SEVERITY_SORT_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+
+const CLOUD_BADGE_STYLES = {
+  aws: "bg-orange-100 text-orange-700 border-orange-200",
+  azure: "bg-blue-100 text-blue-700 border-blue-200",
+  gcp: "bg-emerald-100 text-emerald-700 border-emerald-200",
+};
+
+const CLOUD_LABELS = { aws: "AWS", azure: "Azure", gcp: "GCP" };
+
+const CloudBadge = ({ cloud }) => (
+  <span
+    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${CLOUD_BADGE_STYLES[cloud] || "bg-gray-100 text-gray-600 border-gray-200"}`}
+  >
+    {CLOUD_LABELS[cloud] || cloud}
+  </span>
+);
+
 /**
  * Reusable findings table used by all framework dashboards.
  *
@@ -26,6 +44,7 @@ import { useState } from "react";
  *   hiddenFindings    — array of IDs to hide
  *   onHideFinding     — fn(e, id)
  *   showHideAction    — show hide button (default true)
+ *   showCloudColumn   — show Cloud + Source columns (default false)
  */
 const FindingsTable = ({
   tableData = [],
@@ -37,13 +56,18 @@ const FindingsTable = ({
   hiddenFindings = [],
   onHideFinding,
   showHideAction = true,
+  showCloudColumn = false,
 }) => {
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedSeverities, setSelectedSeverities] = useState([]);
   const [selectedRegions, setSelectedRegions] = useState([]);
+  const [selectedClouds, setSelectedClouds] = useState([]);
   const [pageSize, setPageSize] = useState(10);
 
   const filterOptions = getFilterOptions(tableData);
+  const cloudOptions = showCloudColumn
+    ? [...new Set(tableData.map((r) => r.cloud).filter(Boolean))].sort()
+    : [];
 
   const visibleData = tableData.filter(
     (r) => !hiddenFindings.includes(r.id + r.region),
@@ -52,12 +76,13 @@ const FindingsTable = ({
     services: selectedServices,
     severities: selectedSeverities,
     regions: selectedRegions,
-  });
+  }).filter((r) => selectedClouds.length === 0 || selectedClouds.includes(r.cloud));
 
   const clearAll = () => {
     setSelectedServices([]);
     setSelectedSeverities([]);
     setSelectedRegions([]);
+    setSelectedClouds([]);
   };
 
   const handleExportJSON = () => {
@@ -71,6 +96,7 @@ const FindingsTable = ({
   };
 
   const activeFilters = [
+    selectedClouds.length > 0 && `Cloud: ${selectedClouds.map((c) => c.toUpperCase()).join(", ")}`,
     selectedServices.length > 0 && `Service: ${selectedServices.join(", ")}`,
     selectedSeverities.length > 0 &&
       `Severity: ${selectedSeverities.join(", ")}`,
@@ -78,13 +104,44 @@ const FindingsTable = ({
       `${regionLabel}: ${selectedRegions.join(", ")}`,
   ].filter(Boolean);
 
+  // ── Cloud columns (only when showCloudColumn is true) ────────────────────────
+  const cloudColumns = showCloudColumn
+    ? [
+        {
+          title: "Cloud",
+          dataIndex: "cloud",
+          key: "cloud",
+          width: 100,
+          render: (cloud) => <CloudBadge cloud={cloud} />,
+          filters: [
+            { text: "AWS", value: "aws" },
+            { text: "Azure", value: "azure" },
+            { text: "GCP", value: "gcp" },
+          ],
+          onFilter: (value, record) => record.cloud === value,
+        },
+        {
+          title: "Source",
+          dataIndex: "source",
+          key: "source",
+          sorter: (a, b) => (a.source || "").localeCompare(b.source || ""),
+          render: (val) => (
+            <span className="text-sm font-mono text-gray-600">{val || "—"}</span>
+          ),
+        },
+      ]
+    : [];
+
   // ── Base columns (always present) ──────────────────────────────────────────
   const baseColumns = [
     {
       title: "Severity",
       dataIndex: "severity_level",
       key: "severity_level",
-      sorter: (a, b) => a.severity_level.localeCompare(b.severity_level),
+      defaultSortOrder: "ascend",
+      sorter: (a, b) =>
+        (SEVERITY_SORT_ORDER[a.severity_level] ?? 99) -
+        (SEVERITY_SORT_ORDER[b.severity_level] ?? 99),
       render: (severity) => <SeverityTag severity={severity} />,
     },
     {
@@ -161,7 +218,7 @@ const FindingsTable = ({
         ]
       : [];
 
-  const columns = [...extraColumns, ...baseColumns, ...actionColumn];
+  const columns = [...extraColumns, ...cloudColumns, ...baseColumns, ...actionColumn];
 
   return (
     <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg rounded-2xl shadow-xl shadow-indigo-500/10 border border-indigo-100 dark:border-slate-700">
@@ -177,6 +234,14 @@ const FindingsTable = ({
         <div className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex flex-wrap items-center gap-2">
+              {showCloudColumn && cloudOptions.length > 0 && (
+                <DropdownFilter
+                  label="Cloud"
+                  options={cloudOptions}
+                  selected={selectedClouds}
+                  onChange={setSelectedClouds}
+                />
+              )}
               {filterOptions.services.length > 0 && (
                 <DropdownFilter
                   label="Service"

@@ -211,7 +211,7 @@ const SummaryComponent = ({
           scanned_meta_data: report.scanned_meta_data,
         });
         setSecurityServicesScanResults(
-          report.security_services_scanned_data || {}
+          report.security_services_scanned_data || []
         );
         setGlobalServicesScanResults(report.global_services_scan_results || {});
         setIsReportAvailable(true);
@@ -272,10 +272,10 @@ const SummaryComponent = ({
     <div className="p-6 pl-12">
       <div className="mb-8">
         <div className="mt-2 flex items-center justify-between">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
             {/* <Shield className="w-8 h-8 text-indigo-600" /> */}
             Cloud Security Dashboard
-          </h1>
+          </h2>
 
           <div className="flex items-center gap-4">
             <div className="w-60">

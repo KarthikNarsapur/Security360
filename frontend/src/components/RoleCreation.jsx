@@ -12,6 +12,8 @@ import Spinner from "./UI/Spinner";
 import { LuNotebookPen } from "react-icons/lu";
 import { GetNote } from "./Utils";
 
+const backendUrl = process.env.REACT_APP_BACKEND_URL;
+
 const downloadInfraCFTYAML = async () => {
   const CFT_S3_URL = process.env.REACT_APP_INFRA_CF_TEMPLATE_URL;
 
@@ -31,6 +33,21 @@ const downloadInfraCFTYAML = async () => {
   } catch (error) {
     console.error("Download failed:", error);
     notifyError("Download failed");
+  }
+};
+
+const downloadAwsSOP = async () => {
+  try {
+    const res = await fetch(`${backendUrl}/api/sop/aws-role-creation`);
+    const data = await res.json();
+    if (data.status === "ok" && data.url) {
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } else {
+      notifyError(data.error_message || "Failed to get download link");
+    }
+  } catch (err) {
+    console.error("AWS SOP download error:", err);
+    notifyError("Failed to download SOP document");
   }
 };
 
@@ -131,36 +148,13 @@ export default function RoleCreation({ onClose }) {
               <h3 className="text-md font-semibold text-slate-700 dark:text-slate-300">
                 Option 3: Manual Role Creation
               </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-4">
-                Download detailed step-by-step instructions
+              <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-2">
+                Download detailed step-by-step instructions. The download link will expire in <span className="font-semibold text-amber-600 dark:text-amber-400">60 minutes</span>.
               </p>
               <Button
                 className="!bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 !text-white hover:!text-white !border-0 font-semibold px-6 py-2 h-auto rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 icon={<FiDownload className="w-4 h-4" />}
-                onClick={async () => {
-                  const sopPdfS3Url =
-                    process.env.REACT_APP_INFRA_SCAN_SOP_PDF_S3_URL || "";
-                  if (sopPdfS3Url) {
-                    const response = await fetch(sopPdfS3Url, { mode: "cors" });
-                    if (!response.ok) {
-                      notifyError("Failed to fetch PDF");
-                      return;
-                    }
-
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "infra-manual-role-creation-steps.pdf";
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(url);
-                    notifySuccess("SOP PDF downloaded");
-                  } else {
-                    notifyError("PDF URL not configured");
-                  }
-                }}
+                onClick={downloadAwsSOP}
               >
                 Download SOP PDF
               </Button>

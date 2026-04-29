@@ -167,3 +167,88 @@ def cloudtrail_and_logging_check(session):
 #             "total_scanned": 4*len(trails)
 #         },
 #     }
+
+
+def check_cloudtrail_log_immutability(session):
+    print("check_cloudtrail_log_immutability")
+    ct = session.client("cloudtrail")
+    s3 = session.client("s3")
+    resources = []
+
+    trails = ct.describe_trails().get("trailList", [])
+    for trail in trails:
+        bucket_name = trail.get("S3BucketName")
+        if not bucket_name:
+            continue
+
+        issues = []
+        try:
+            versioning = s3.get_bucket_versioning(Bucket=bucket_name)
+            if versioning.get("Status") != "Enabled":
+                issues.append("S3 versioning not enabled")
+        except Exception:
+            issues.append("Could not check S3 versioning")
+
+        try:
+            lock = s3.get_object_lock_configuration(Bucket=bucket_name)
+            if not lock.get("ObjectLockConfiguration", {}).get("ObjectLockEnabled") == "Enabled":
+                issues.append("S3 Object Lock not enabled")
+        except Exception:
+            issues.append("S3 Object Lock not configured")
+
+        if issues:
+            resources.append({
+                "resource_name": trail.get("Name"),
+                "s3_bucket": bucket_name,
+                "issues": "; ".join(issues),
+            })
+
+    return {
+        "check_name": "CloudTrail Log Immutability",
+        "service": "CloudTrail",
+        "problem_statement": "CloudTrail log S3 buckets lack versioning or Object Lock, making logs vulnerable to tampering or deletion.",
+        "severity_score": 75,
+        "severity_level": "High",
+        "resources_affected": resources,
+        "recommendation": "Enable S3 versioning and Object Lock on CloudTrail log buckets to ensure log immutability.",
+        "additional_info": {"total_scanned": len(trails), "affected": len(resources)},
+    }
+
+
+def check_centralized_logging_account(session):
+    print("check_centralized_logging_account")
+    ct = session.client("cloudtrail")
+    sts = session.client("sts")
+    resources = []
+
+    try:
+        current_account = sts.get_caller_identity()["Account"]
+        trails = ct.describe_trails().get("trailList", [])
+
+        all_local = True
+        for trail in trails:
+            # If trail's S3 bucket is in a different account, it's centralized
+            # We can check if the trail is an organization trail
+            if trail.get("IsOrganizationTrail"):
+                all_local = False
+                break
+
+        if all_local and trails:
+            resources.append({
+                "resource_name": "CloudTrail Configuration",
+                "current_account": current_account,
+                "issue": "All CloudTrail trails log to the current account. No centralized logging account detected.",
+            })
+    except Exception as e:
+        print(f"Error checking centralized logging: {e}")
+
+    return {
+        "check_name": "Centralized Logging Account",
+        "service": "CloudTrail",
+        "problem_statement": "CloudTrail logs are not sent to a centralized logging account, reducing audit isolation.",
+        "severity_score": 45,
+        "severity_level": "Medium",
+        "resources_affected": resources,
+        "recommendation": "Configure an organization trail that sends logs to a dedicated logging account for tamper-proof audit trails.",
+        "additional_info": {"total_scanned": 1, "affected": len(resources)},
+    }

@@ -9,8 +9,8 @@ import {
 } from "@ant-design/icons";
 
 import "./Dashboard.css";
-import SummaryComponent from "./SummaryComponent";
-import FindingsComponent from "./FindingsComponent";
+// SummaryComponent and FindingsComponent are no longer used directly.
+// Cloud-specific pages (AwsSummary, AzureSummary, etc.) handle their own logic now.
 import SidebarComponent from "./SidebarComponent";
 import OUComponent from "./OuComponent";
 import HomePage from "./Homepage";
@@ -30,15 +30,32 @@ import ISODashboard from "./ISO/ISODashboard";
 import AWAFDashboard from "./AWAF/AWAFDashboard";
 import Site24x7_dashboard from "./Site24x7/Site24x7_dashboard";
 import OWASPSummary from "./Framework/OWASP/OWASPSummary";
+import ComplianceDashboard from "./Compliance/ComplianceDashboard";
+import ComplianceLanding from "./Compliance/ComplianceLanding";
+import IndustryDashboard from "./Industry/IndustryDashboard";
+
+
+// AWS
+import AwsSummary from "./pages/aws/AwsSummary";
+import AwsFindings from "./pages/aws/AwsFindings";
+
+// Azure
+import AzureSummary from "./pages/azure/AzureSummary";
+import AzureFindings from "./pages/azure/AzureFindings";
+
+// GCP
+import GcpSummary from "./pages/gcp/GcpSummary";
+import GcpFindings from "./pages/gcp/GcpFindings";
+
+
 
 const { Header, Content } = Layout;
 
 export default function Dashboard({ modal, darkMode }) {
-  const [results, setResults] = useState([]);
   const [selectedMenu, setSelectedMenu] = useState("home");
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
-  const [meta, setMeta] = useState({});
+  const [siderWidth, setSiderWidth] = useState(260);
   // const [report, setReport] = useState([]);
   const [isReportAvailable, setIsReportAvailable] = useState(false);
   const [error, setError] = useState("");
@@ -56,6 +73,18 @@ export default function Dashboard({ modal, darkMode }) {
   const [globalServicesScanResults, setGlobalServicesScanResults] = useState(
     {},
   );
+
+  // Per-cloud isolated state
+  const [awsResults, setAwsResults] = useState([]);
+  const [awsMeta, setAwsMeta] = useState({});
+  const [awsSecurityServicesScanResults, setAwsSecurityServicesScanResults] = useState([]);
+  const [awsGlobalServicesScanResults, setAwsGlobalServicesScanResults] = useState({});
+
+  const [azureResults, setAzureResults] = useState([]);
+  const [azureMeta, setAzureMeta] = useState({});
+
+  const [gcpResults, setGcpResults] = useState([]);
+  const [gcpMeta, setGcpMeta] = useState({});
   const [clusters, setClusters] = useState([
     {
       cluster_name: "common-ap-south-1-test-eks",
@@ -102,6 +131,57 @@ export default function Dashboard({ modal, darkMode }) {
     getUserData();
   }, []);
 
+  // Shared props across all cloud pages
+  const sharedProps = {
+    accountDetails,
+    modal,
+    darkMode,
+    setUserName,
+    setFullName,
+    setAccountDetails,
+    setEksAccountDetails,
+  };
+
+  const pageMap = {
+    // AWS
+    "aws-summary": <AwsSummary {...sharedProps} results={awsResults} setResults={setAwsResults} meta={awsMeta} setMeta={setAwsMeta} securityServicesScanResults={awsSecurityServicesScanResults} setSecurityServicesScanResults={setAwsSecurityServicesScanResults} globalServicesScanResults={awsGlobalServicesScanResults} setGlobalServicesScanResults={setAwsGlobalServicesScanResults} />,
+    "aws-findings": <AwsFindings {...sharedProps} results={awsResults} meta={awsMeta} securityServicesScanResults={awsSecurityServicesScanResults} globalServicesScanResults={awsGlobalServicesScanResults} />,
+
+    // Azure
+    "az-summary": <AzureSummary {...sharedProps} results={azureResults} setResults={setAzureResults} meta={azureMeta} setMeta={setAzureMeta} />,
+    "az-findings": <AzureFindings {...sharedProps} results={azureResults} meta={azureMeta} />,
+
+    // GCP
+    "gcp-summary": <GcpSummary {...sharedProps} results={gcpResults} setResults={setGcpResults} meta={gcpMeta} setMeta={setGcpMeta} />,
+    "gcp-findings": <GcpFindings {...sharedProps} results={gcpResults} meta={gcpMeta} />,
+
+    // Compliance (cloud-agnostic)
+    "compliance": <ComplianceLanding setSelectedMenu={setSelectedMenu} />,
+    "compliance-gdpr": <ComplianceDashboard frameworkKey="gdpr" {...sharedProps} />,
+    "compliance-pcidss": <ComplianceDashboard frameworkKey="pcidss" {...sharedProps} />,
+    "compliance-hipaa": <ComplianceDashboard frameworkKey="hipaa" {...sharedProps} />,
+    "compliance-soc2": <ComplianceDashboard frameworkKey="soc2" {...sharedProps} />,
+    "compliance-fedramp": <ComplianceDashboard frameworkKey="fedramp" {...sharedProps} />,
+    "compliance-wafr": <ComplianceDashboard frameworkKey="wafr" {...sharedProps} />,
+    "compliance-cis": <ComplianceDashboard frameworkKey="cis" {...sharedProps} />,
+    "compliance-nist": <ComplianceDashboard frameworkKey="nist" {...sharedProps} />,
+    "compliance-dpdp": <ComplianceDashboard frameworkKey="dpdp" {...sharedProps} />,
+    "compliance-rbi": <ComplianceDashboard frameworkKey="rbi" {...sharedProps} />,
+    "compliance-sebi": <ComplianceDashboard frameworkKey="sebi" {...sharedProps} />,
+    "compliance-ndhm": <ComplianceDashboard frameworkKey="ndhm" {...sharedProps} />,
+    "compliance-ehr": <ComplianceDashboard frameworkKey="ehr" {...sharedProps} />,
+
+    // Industry (navigation hubs)
+    "industry": <IndustryDashboard industryKey={null} setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-healthcare": <IndustryDashboard industryKey="healthcare" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-finance": <IndustryDashboard industryKey="finance" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-saas": <IndustryDashboard industryKey="saas" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-government": <IndustryDashboard industryKey="government" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+    "industry-ecommerce": <IndustryDashboard industryKey="ecommerce" setSelectedMenu={setSelectedMenu} {...sharedProps} />,
+  };
+
+
+
   return (
     <div>
       <Layout
@@ -113,16 +193,18 @@ export default function Dashboard({ modal, darkMode }) {
           setCollapsed={setCollapsed}
           setSelectedMenu={setSelectedMenu}
           selectedMenu={selectedMenu}
+          siderWidth={siderWidth}
+          setSiderWidth={setSiderWidth}
         />
 
         <Layout
           style={{
-            marginLeft: collapsed ? "80px" : "200px",
+            marginLeft: collapsed ? "80px" : `${siderWidth}px`,
             transition: "margin-left 0.3s",
           }}
         >
-          <Content className="bg-gray-100 dark:bg-gray-500">
-            <div className="bg-gray-100 dark:bg-gray-500">
+          <Content className="bg-gray-100 dark:bg-slate-900">
+            <div className="bg-gray-100 dark:bg-slate-900">
               {selectedMenu === "home" && (
                 <HomePage
                   userName={userName}
@@ -133,9 +215,13 @@ export default function Dashboard({ modal, darkMode }) {
                   setEksAccountDetails={setEksAccountDetails}
                 />
               )}
+                {pageMap[selectedMenu]}
 
-              {selectedMenu === "summary" && (
+            {/* aws */}
+
+              {/* {selectedMenu === "aws-summary" && (
                 <SummaryComponent
+                  cloud="aws"
                   setSelectedMenu={setSelectedMenu}
                   results={results}
                   setResults={setResults}
@@ -147,9 +233,7 @@ export default function Dashboard({ modal, darkMode }) {
                   prevReportAvailable={prevReportAvailable}
                   setPrevReportAvailable={setPrevReportAvailable}
                   securityServicesScanResults={securityServicesScanResults}
-                  setSecurityServicesScanResults={
-                    setSecurityServicesScanResults
-                  }
+                  setSecurityServicesScanResults={setSecurityServicesScanResults}
                   globalServicesScanResults={globalServicesScanResults}
                   setGlobalServicesScanResults={setGlobalServicesScanResults}
                   modal={modal}
@@ -163,10 +247,11 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )}
+              )} */}
 
-              {selectedMenu == "findings" && (
+              {/* {selectedMenu == "aws-findings" && (
                 <FindingsComponent
+                  cloud="aws"
                   findings={results}
                   selectedFinding={selectedFinding}
                   onSelect={setSelectedFinding}
@@ -174,9 +259,6 @@ export default function Dashboard({ modal, darkMode }) {
                   meta={meta}
                   fullName={fullName}
                   securityServicesScanResults={securityServicesScanResults}
-                  setSecurityServicesScanResults={
-                    setSecurityServicesScanResults
-                  }
                   globalServicesScanResults={globalServicesScanResults}
                   modal={modal}
                   darkMode={darkMode}
@@ -189,9 +271,125 @@ export default function Dashboard({ modal, darkMode }) {
                   isSampleReport={isSampleReport}
                   setIsSampleReport={setIsSampleReport}
                 />
-              )}
+              )} */}
 
-              {selectedMenu === "threatdetect" && (
+              {/* Azure */}
+
+              {/* {selectedMenu === "az-summary" && (
+                <SummaryComponent cloud="azure"
+                  setSelectedMenu={setSelectedMenu}
+                  results={results}
+                  setResults={setResults}
+                  meta={meta}
+                  setMeta={setMeta}
+                  isReportAvailable={isReportAvailable}
+                  setIsReportAvailable={setIsReportAvailable}
+                  accountDetails={accountDetails}
+                  prevReportAvailable={prevReportAvailable}
+                  setPrevReportAvailable={setPrevReportAvailable}
+                  securityServicesScanResults={securityServicesScanResults}
+                  setSecurityServicesScanResults={setSecurityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  setGlobalServicesScanResults={setGlobalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )} */}
+
+              {/* {selectedMenu === "az-findings" && (
+                <FindingsComponent cloud="azure"
+                  findings={results}
+                  selectedFinding={selectedFinding}
+                  onSelect={setSelectedFinding}
+                  onClose={() => setSelectedFinding(null)}
+                  meta={meta}
+                  fullName={fullName}
+                  securityServicesScanResults={securityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )} */}
+
+              {/* GCP */}
+              {/* {selectedMenu === "gcp-summary" && (
+                <SummaryComponent cloud="gcp"
+                  setSelectedMenu={setSelectedMenu}
+                  results={results}
+                  setResults={setResults}
+                  meta={meta}
+                  setMeta={setMeta}
+                  isReportAvailable={isReportAvailable}
+                  setIsReportAvailable={setIsReportAvailable}
+                  accountDetails={accountDetails}
+                  prevReportAvailable={prevReportAvailable}
+                  setPrevReportAvailable={setPrevReportAvailable}
+                  securityServicesScanResults={securityServicesScanResults}
+                  setSecurityServicesScanResults={setSecurityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  setGlobalServicesScanResults={setGlobalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )} */}
+
+              {/* {selectedMenu === "gcp-findings" && (
+                <FindingsComponent cloud="gcp"
+                  findings={results}
+                  selectedFinding={selectedFinding}
+                  onSelect={setSelectedFinding}
+                  onClose={() => setSelectedFinding(null)}
+                  meta={meta}
+                  fullName={fullName}
+                  securityServicesScanResults={securityServicesScanResults}
+                  globalServicesScanResults={globalServicesScanResults}
+                  modal={modal}
+                  darkMode={darkMode}
+                  setUserName={setUserName}
+                  setFullName={setFullName}
+                  setAccountDetails={setAccountDetails}
+                  setEksAccountDetails={setEksAccountDetails}
+                  isSummaryScanSampleReport={isSummaryScanSampleReport}
+                  setIsSummaryScanSampleReport={setIsSummaryScanSampleReport}
+                  isSampleReport={isSampleReport}
+                  setIsSampleReport={setIsSampleReport}
+                />
+              )} */}
+
+
+
+
+
+
+
+
+
+
+              {(selectedMenu === "threatdetect" || selectedMenu === "aws-threatdetect" || selectedMenu === "az-threatdetect" || selectedMenu === "gcp-threatdetect") && (
                 <ThreatDetection
                   accountDetails={accountDetails}
                   modal={modal}

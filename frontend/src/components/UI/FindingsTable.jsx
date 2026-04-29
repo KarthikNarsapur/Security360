@@ -60,11 +60,9 @@ const DropdownFilter = ({ label, options, selected, onChange }) => {
       trigger={["click"]}
       dropdownRender={() => (
         <div
+          className="bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-600"
           style={{
             padding: 12,
-            background: "#fff",
-            borderRadius: 8,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
             display: "flex",
             flexDirection: "column",
             maxHeight: 160,
@@ -77,8 +75,9 @@ const DropdownFilter = ({ label, options, selected, onChange }) => {
               checked={selected.includes(opt)}
               onChange={(e) => handleCheckboxChange(opt, e.target.checked)}
               style={{ marginBottom: 8 }}
+              className="text-slate-900 dark:text-white"
             >
-              {opt}
+              <span className="text-slate-900 dark:text-white">{opt}</span>
             </Checkbox>
           ))}
         </div>
@@ -412,7 +411,7 @@ export default function FindingsTable({
     let currentRow = serviceHeaderRow + 1;
 
     // Region-wise services
-    securityServicesScanResults.forEach((regionData) => {
+    (Array.isArray(securityServicesScanResults) ? securityServicesScanResults : []).forEach((regionData) => {
       const region = regionData.region;
       if (region == "global") {
         return;

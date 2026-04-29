@@ -19,6 +19,8 @@ import base64
 
 scan_type_mapping = {
     "basic": "BasicScanCount",
+    "azure_basic": "AzureBasicScanCount",
+    "gcp_basic": "GCPBasicScanCount",
     "cloudtrail": "CloudTrailScanCount",
     "vpc-flow-logs": "VPCFlowLogsScanCount",
     "cis": "CISScanCount",
@@ -712,8 +714,8 @@ def check_scan_threshold(username: str, scan_type: str):
         if scan_type.lower() in UNLIMITED_FREE_SCAN_TYPES:
             return {"status": "ok", "message": "listnamespace allowed (unlimited)"}
 
-        ONE_FREE_SCAN_TYPES = ["basic"]
-        threshold = 1 if scan_type.lower() in ONE_FREE_SCAN_TYPES else 0
+        ONE_FREE_SCAN_TYPES = ["basic", "azure_basic", "gcp_basic"]
+        threshold = 100 if scan_type.lower() in ONE_FREE_SCAN_TYPES else 0
 
         field_to_check = scan_type_mapping.get(scan_type.lower())
         if not field_to_check:

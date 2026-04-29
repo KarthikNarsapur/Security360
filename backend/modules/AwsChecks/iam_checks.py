@@ -549,3 +549,433 @@ def check_iam_access_analyzer(session, scan_meta_data):
             "affected": 0,
         },
     }
+
+
+def root_account_recent_usage(iam, scan_meta_data_global_services, account_summary, threshold_days=30):
+    print("root_account_recent_usage")
+    resources_affected = []
+
+    try:
+        # Check credential report for root last usage
+        try:
+            iam.generate_credential_report()
+        except Exception:
+            pass
+
+        import csv
+        import io
+        import time
+
+        # Wait briefly for report generation
+        for _ in range(5):
+            try:
+                report = iam.get_credential_report()
+                break
+            except iam.exceptions.CredentialReportNotReadyException:
+                time.sleep(1)
+        else:
+            report = None
+
+        if report:
+            content = report["Content"].decode("utf-8")
+            reader = csv.DictReader(io.StringIO(content))
+
+            for row in reader:
+                if row["user"] == "<root_account>":
+                    password_last_used = row.get("password_last_used", "N/A")
+                    access_key_1_last_used = row.get("access_key_1_last_used_date", "N/A")
+                    access_key_2_last_used = row.get("access_key_2_last_used_date", "N/A")
+
+                    threshold_date = datetime.now(timezone.utc) - timedelta(days=threshold_days)
+                    used_recently = False
+
+                    for date_str in [password_last_used, access_key_1_last_used, access_key_2_last_used]:
+                        if date_str and date_str not in ("N/A", "no_information", "not_supported"):
+                            try:
+                                last_used = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                                if last_used > threshold_date:
+                                    used_recently = True
+                                    resources_affected.append({
+                                        "resource_name": "Root Account",
+                                        "password_last_used": password_last_used,
+                                        "access_key_1_last_used": access_key_1_last_used,
+                                        "access_key_2_last_used": access_key_2_last_used,
+                                        "note": f"Root account was used within the last {threshold_days} days.",
+                                        "last_updated": datetime.now(IST).isoformat(),
+                                    })
+                                    break
+                            except (ValueError, TypeError):
+                                continue
+                    break
+
+    except Exception as e:
+        print(f"Error checking root account recent usage: {e}")
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources_affected)
+    scan_meta_data_global_services["High"] += len(resources_affected)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {
+        "check_name": "Root Account Used in Last 30 Days",
+        "service": "IAM",
+        "problem_statement": "The root account has been used within the last 30 days. Root account usage should be avoided for day-to-day operations.",
+        "severity_score": 90,
+        "severity_level": "High",
+        "resources_affected": resources_affected,
+        "recommendation": "Avoid using the root account. Use IAM users or roles with least-privilege permissions instead.",
+        "additional_info": {"total_scanned": 1, "affected": len(resources_affected)},
+    }
+
+
+def users_with_administrator_access(iam, scan_meta_data_global_services, users):
+    print("users_with_administrator_access")
+    admin_users = []
+
+    for user in users:
+        user_name = user["UserName"]
+        try:
+            attached_policies = iam.list_attached_user_policies(UserName=user_name).get(
+                "AttachedPolicies", []
+            )
+            for policy in attached_policies:
+                if policy.get("PolicyName") == "AdministratorAccess":
+                    admin_users.append({
+                        "resource_name": user_name,
+                        "user_id": user.get("UserId"),
+                        "policy_arn": policy.get("PolicyArn"),
+                        "note": "User has AdministratorAccess managed policy directly attached.",
+                        "last_updated": datetime.now(IST).isoformat(),
+                    })
+                    break
+
+            # Also check group-inherited AdministratorAccess
+            groups = iam.list_groups_for_user(UserName=user_name).get("Groups", [])
+            for group in groups:
+                group_policies = iam.list_attached_group_policies(
+                    GroupName=group["GroupName"]
+                ).get("AttachedPolicies", [])
+                for policy in group_policies:
+                    if policy.get("PolicyName") == "AdministratorAccess":
+                        # Avoid duplicate if already flagged via direct attachment
+                        if not any(u["resource_name"] == user_name for u in admin_users):
+                            admin_users.append({
+                                "resource_name": user_name,
+                                "user_id": user.get("UserId"),
+                                "policy_arn": policy.get("PolicyArn"),
+                                "inherited_from_group": group["GroupName"],
+                                "note": f"User inherits AdministratorAccess via group '{group['GroupName']}'.",
+                                "last_updated": datetime.now(IST).isoformat(),
+                            })
+                        break
+
+        except Exception as e:
+            print(f"Error checking AdministratorAccess for user {user_name}: {e}")
+
+    scan_meta_data_global_services["total_scanned"] += len(users)
+    scan_meta_data_global_services["affected"] += len(admin_users)
+    scan_meta_data_global_services["Critical"] += len(admin_users)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {
+        "check_name": "IAM Users with AdministratorAccess",
+        "service": "IAM",
+        "problem_statement": "IAM users have the AdministratorAccess managed policy attached, granting full access to all AWS services.",
+        "severity_score": 95,
+        "severity_level": "Critical",
+        "resources_affected": admin_users,
+        "recommendation": "Remove AdministratorAccess from IAM users. Use least-privilege policies or scoped roles instead.",
+        "additional_info": {"total_scanned": len(users), "affected": len(admin_users)},
+    }
+
+
+def wildcard_principal_in_trust_policies(iam, scan_meta_data_global_services, roles):
+    print("wildcard_principal_in_trust_policies")
+    risky_roles = []
+
+    for role in roles:
+        role_name = role["RoleName"]
+        try:
+            trust_policy = role.get("AssumeRolePolicyDocument", {})
+            statements = trust_policy.get("Statement", [])
+            if not isinstance(statements, list):
+                statements = [statements]
+
+            for stmt in statements:
+                principal = stmt.get("Principal", {})
+
+                # Principal can be "*" directly
+                if principal == "*":
+                    risky_roles.append({
+                        "resource_name": role_name,
+                        "role_id": role.get("RoleId"),
+                        "create_date": str(role.get("CreateDate")),
+                        "trust_policy_principal": str(principal),
+                        "note": "Role trust policy allows any AWS principal (Principal: \"*\").",
+                        "last_updated": datetime.now(IST).isoformat(),
+                    })
+                    break
+
+                # Principal can be {"AWS": "*"} or {"AWS": ["*", ...]}
+                if isinstance(principal, dict):
+                    for key, value in principal.items():
+                        values = value if isinstance(value, list) else [value]
+                        if "*" in values:
+                            # Check if there's a Condition that restricts it
+                            condition = stmt.get("Condition", {})
+                            if not condition:
+                                risky_roles.append({
+                                    "resource_name": role_name,
+                                    "role_id": role.get("RoleId"),
+                                    "create_date": str(role.get("CreateDate")),
+                                    "trust_policy_principal": str(principal),
+                                    "note": f"Role trust policy has wildcard in {key} principal without conditions.",
+                                    "last_updated": datetime.now(IST).isoformat(),
+                                })
+                                break
+                    else:
+                        continue
+                    break
+
+        except Exception as e:
+            print(f"Error checking trust policy for role {role_name}: {e}")
+
+    scan_meta_data_global_services["total_scanned"] += len(roles)
+    scan_meta_data_global_services["affected"] += len(risky_roles)
+    scan_meta_data_global_services["High"] += len(risky_roles)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {
+        "check_name": "Wildcard Principal in Role Trust Policies",
+        "service": "IAM",
+        "problem_statement": "IAM roles have trust policies that allow any principal (\"*\") to assume the role without conditions.",
+        "severity_score": 90,
+        "severity_level": "High",
+        "resources_affected": risky_roles,
+        "recommendation": "Restrict trust policies to specific AWS accounts, services, or principals. Add conditions (e.g., ExternalId) where cross-account access is needed.",
+        "additional_info": {"total_scanned": len(roles), "affected": len(risky_roles)},
+    }
+
+
+def password_policy_complexity(iam, scan_meta_data_global_services):
+    print("password_policy_complexity")
+    resources_affected = []
+
+    try:
+        try:
+            policy = iam.get_account_password_policy().get("PasswordPolicy", {})
+        except iam.exceptions.NoSuchEntityException:
+            resources_affected.append({
+                "resource_name": "Account Password Policy",
+                "issue": "No IAM password policy is configured.",
+                "require_uppercase": "N/A",
+                "require_lowercase": "N/A",
+                "require_symbols": "N/A",
+                "require_numbers": "N/A",
+                "max_password_age": "N/A",
+                "min_password_length": "N/A",
+                "last_updated": datetime.now(IST).isoformat(),
+            })
+
+            scan_meta_data_global_services["total_scanned"] += 1
+            scan_meta_data_global_services["affected"] += 1
+            scan_meta_data_global_services["High"] += 1
+            if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+                scan_meta_data_global_services["services_scanned"].append("IAM")
+
+            return {
+                "check_name": "Password Policy Complexity",
+                "service": "IAM",
+                "problem_statement": "No IAM password policy is configured for the account.",
+                "severity_score": 85,
+                "severity_level": "High",
+                "resources_affected": resources_affected,
+                "recommendation": "Create a password policy that enforces complexity requirements: uppercase, lowercase, numbers, symbols, minimum length, and maximum age.",
+                "additional_info": {"total_scanned": 1, "affected": 1},
+            }
+
+        issues = []
+
+        if not policy.get("RequireUppercaseCharacters", False):
+            issues.append("RequireUppercaseCharacters is disabled")
+        if not policy.get("RequireLowercaseCharacters", False):
+            issues.append("RequireLowercaseCharacters is disabled")
+        if not policy.get("RequireSymbols", False):
+            issues.append("RequireSymbols is disabled")
+        if not policy.get("RequireNumbers", False):
+            issues.append("RequireNumbers is disabled")
+        if not policy.get("MaxPasswordAge", 0):
+            issues.append("MaxPasswordAge is not set (passwords never expire)")
+        elif policy.get("MaxPasswordAge", 0) > 90:
+            issues.append(f"MaxPasswordAge is {policy['MaxPasswordAge']} days (should be ≤ 90)")
+        if policy.get("MinimumPasswordLength", 0) < 14:
+            issues.append(f"MinimumPasswordLength is {policy.get('MinimumPasswordLength', 0)} (should be ≥ 14)")
+
+        if issues:
+            resources_affected.append({
+                "resource_name": "Account Password Policy",
+                "issues": "; ".join(issues),
+                "require_uppercase": str(policy.get("RequireUppercaseCharacters", False)),
+                "require_lowercase": str(policy.get("RequireLowercaseCharacters", False)),
+                "require_symbols": str(policy.get("RequireSymbols", False)),
+                "require_numbers": str(policy.get("RequireNumbers", False)),
+                "max_password_age": str(policy.get("MaxPasswordAge", "Not set")),
+                "min_password_length": str(policy.get("MinimumPasswordLength", 0)),
+                "last_updated": datetime.now(IST).isoformat(),
+            })
+
+    except Exception as e:
+        print(f"Error checking password policy complexity: {e}")
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources_affected)
+    scan_meta_data_global_services["Medium"] += len(resources_affected)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {
+        "check_name": "Password Policy Complexity",
+        "service": "IAM",
+        "problem_statement": "The IAM password policy does not enforce all recommended complexity requirements.",
+        "severity_score": 65,
+        "severity_level": "Medium",
+        "resources_affected": resources_affected,
+        "recommendation": "Enable all complexity requirements: uppercase, lowercase, numbers, symbols, minimum length ≥ 14, and maximum password age ≤ 90 days.",
+        "additional_info": {"total_scanned": 1, "affected": len(resources_affected)},
+    }
+
+
+def check_break_glass_role(iam, scan_meta_data_global_services, roles):
+    print("check_break_glass_role")
+    resources_affected = []
+
+    break_glass_keywords = ["break-glass", "breakglass", "emergency", "break_glass"]
+    found = False
+
+    for role in roles:
+        role_name = role["RoleName"].lower()
+        if any(kw in role_name for kw in break_glass_keywords):
+            # Verify it has MFA condition
+            trust_policy = role.get("AssumeRolePolicyDocument", {})
+            statements = trust_policy.get("Statement", [])
+            has_mfa_condition = False
+            for stmt in statements:
+                condition = stmt.get("Condition", {})
+                if condition.get("Bool", {}).get("aws:MultiFactorAuthPresent") == "true":
+                    has_mfa_condition = True
+                elif condition.get("BoolIfExists", {}).get("aws:MultiFactorAuthPresent") == "true":
+                    has_mfa_condition = True
+            if has_mfa_condition:
+                found = True
+                break
+
+    if not found:
+        resources_affected.append({
+            "resource_name": "Break-Glass IAM Role",
+            "issue": "No break-glass / emergency IAM role with MFA condition found.",
+            "note": "A break-glass role should exist for emergency access with MFA enforcement.",
+            "last_updated": datetime.now(IST).isoformat(),
+        })
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources_affected)
+    scan_meta_data_global_services["Medium"] += len(resources_affected)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {
+        "check_name": "Break-Glass IAM Role",
+        "service": "IAM",
+        "problem_statement": "No emergency break-glass IAM role with MFA condition exists for incident response.",
+        "severity_score": 55,
+        "severity_level": "Medium",
+        "resources_affected": resources_affected,
+        "recommendation": "Create a break-glass IAM role with AdministratorAccess, MFA condition in trust policy, and CloudTrail monitoring.",
+        "additional_info": {"total_scanned": 1, "affected": len(resources_affected)},
+    }
+
+
+def check_iam_user_inline_policies(iam, scan_meta_data_global_services, users):
+    print("check_iam_user_inline_policies")
+    resources = []
+    for user in users:
+        name = user["UserName"]
+        try:
+            inline = iam.list_user_policies(UserName=name).get("PolicyNames", [])
+            if inline:
+                resources.append({"resource_name": name, "inline_policy_count": len(inline), "policies": inline[:5], "issue": f"{len(inline)} inline policy(ies) attached."})
+        except Exception as e:
+            print(f"Error checking inline policies for {name}: {e}")
+
+    scan_meta_data_global_services["total_scanned"] += len(users)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Medium"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "IAM Users with Inline Policies", "service": "IAM", "problem_statement": "IAM users have inline policies instead of managed policies.", "severity_score": 45, "severity_level": "Medium", "resources_affected": resources, "recommendation": "Replace inline policies with managed policies attached via groups.", "additional_info": {"total_scanned": len(users), "affected": len(resources)}}
+
+
+def check_iam_group_inline_policies(iam, scan_meta_data_global_services):
+    print("check_iam_group_inline_policies")
+    resources = []
+    groups = iam.list_groups().get("Groups", [])
+    for group in groups:
+        name = group["GroupName"]
+        try:
+            inline = iam.list_group_policies(GroupName=name).get("PolicyNames", [])
+            if inline:
+                resources.append({"resource_name": name, "inline_policy_count": len(inline), "issue": f"{len(inline)} inline policy(ies)."})
+        except Exception:
+            pass
+
+    scan_meta_data_global_services["total_scanned"] += len(groups)
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Low"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "IAM Groups with Inline Policies", "service": "IAM", "problem_statement": "IAM groups have inline policies.", "severity_score": 30, "severity_level": "Low", "resources_affected": resources, "recommendation": "Replace inline policies with managed policies.", "additional_info": {"total_scanned": len(groups), "affected": len(resources)}}
+
+
+def check_root_access_keys_exist(iam, scan_meta_data_global_services, account_summary):
+    print("check_root_access_keys_exist")
+    resources = []
+    if account_summary.get("AccountAccessKeysPresent", 0) > 0:
+        resources.append({"resource_name": "Root Account", "issue": "Root account has active access keys.", "last_updated": datetime.now(IST).isoformat()})
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Critical"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "Root Account Access Keys Exist", "service": "IAM", "problem_statement": "Root account has access keys, which should never exist.", "severity_score": 95, "severity_level": "Critical", "resources_affected": resources, "recommendation": "Delete all root account access keys immediately.", "additional_info": {"total_scanned": 1, "affected": len(resources)}}
+
+
+def check_support_role_exists(iam, scan_meta_data_global_services, roles):
+    print("check_support_role_exists")
+    resources = []
+    found = False
+    for role in roles:
+        try:
+            attached = iam.list_attached_role_policies(RoleName=role["RoleName"]).get("AttachedPolicies", [])
+            if any(p.get("PolicyName") == "AWSSupportAccess" for p in attached):
+                found = True
+                break
+        except Exception:
+            pass
+
+    if not found:
+        resources.append({"resource_name": "AWS Support Role", "issue": "No IAM role with AWSSupportAccess policy exists."})
+
+    scan_meta_data_global_services["total_scanned"] += 1
+    scan_meta_data_global_services["affected"] += len(resources)
+    scan_meta_data_global_services["Low"] += len(resources)
+    if "IAM" not in scan_meta_data_global_services["services_scanned"]:
+        scan_meta_data_global_services["services_scanned"].append("IAM")
+
+    return {"check_name": "AWS Support Role Exists", "service": "IAM", "problem_statement": "No IAM role with AWSSupportAccess policy for incident management.", "severity_score": 25, "severity_level": "Low", "resources_affected": resources, "recommendation": "Create an IAM role with AWSSupportAccess managed policy.", "additional_info": {"total_scanned": 1, "affected": len(resources)}}

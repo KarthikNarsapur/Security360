@@ -1,18 +1,19 @@
-import React, { useState } from "react";
+import React from "react";
 import { Select, Space, Tooltip } from "antd";
-import { groupedRegionOptions } from "../../AWSFilters";
+import { groupedRegionOptions, ALL_REGION_VALUES } from "../../AWSFilters";
 
 const RegionDropdown = ({
   onRegionChange,
   selectedRegions,
   disabled = false,
 }) => {
-  //   const [selectedRegions, setSelectedRegions] = useState([]);
-
   const handleChange = (value) => {
-    // setSelectedRegions(value);
+    // If "global" is selected, expand to all individual regions
+    if (value.includes("global")) {
+      onRegionChange(ALL_REGION_VALUES);
+      return;
+    }
     onRegionChange(value);
-    // console.log(`selected ${value}`);
   };
 
   return (
