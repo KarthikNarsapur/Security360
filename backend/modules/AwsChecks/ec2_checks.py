@@ -130,6 +130,9 @@ def find_unused_security_groups(session, scan_meta_data):
 
     for sg_id in unused_sgs_ids:
         sg = all_sgs[sg_id]
+        # Skip default security groups — they can't be deleted and are always "unused" in new VPCs
+        if sg.get("GroupName") == "default":
+            continue
         unused_sgs.append(
             {
                 "resource_name": sg.get("GroupName"),
@@ -360,4 +363,277 @@ def check_ec2_termination_protection(session, scan_meta_data):
             "total_scanned": len(instances),
             "affected": len(resources),
         },
+    }
+
+
+def check_overly_permissive_outbound_sg(session, scan_meta_data):
+    print("check_overly_permissive_outbound_sg")
+    ec2 = session.client("ec2")
+    all_sgs = ec2.describe_security_groups()["SecurityGroups"]
+    permissive_sgs = []
+
+    for sg in all_sgs:
+        # Skip default security groups — they always have allow-all outbound
+        if sg.get("GroupName") == "default":
+            continue
+
+        for perm in sg.get("IpPermissionsEgress", []):
+            ip_protocol = perm.get("IpProtocol", "")
+
+            # Check for allow-all outbound: protocol -1 (all) with 0.0.0.0/0
+            if ip_protocol == "-1":
+                for ip_range in perm.get("IpRanges", []):
+                    if ip_range.get("CidrIp") == "0.0.0.0/0":
+                        permissive_sgs.append({
+                            "resource_name": sg.get("GroupName"),
+                            "group_id": sg.get("GroupId"),
+                            "vpc_id": sg.get("VpcId"),
+                            "description": sg.get("Description"),
+                            "outbound_rule": "All traffic to 0.0.0.0/0",
+                        })
+                        break
+                else:
+                    for ipv6_range in perm.get("Ipv6Ranges", []):
+                        if ipv6_range.get("CidrIpv6") == "::/0":
+                            permissive_sgs.append({
+                                "resource_name": sg.get("GroupName"),
+                                "group_id": sg.get("GroupId"),
+                                "vpc_id": sg.get("VpcId"),
+                                "description": sg.get("Description"),
+                                "outbound_rule": "All traffic to ::/0",
+                            })
+                            break
+
+    scan_meta_data["total_scanned"] += len(all_sgs)
+    scan_meta_data["affected"] += len(permissive_sgs)
+    scan_meta_data["Low"] += len(permissive_sgs)
+    if "Security Group" not in scan_meta_data["services_scanned"]:
+        scan_meta_data["services_scanned"].append("Security Group")
+
+    return {
+        "check_name": "Overly Permissive Outbound Security Groups",
+        "service": "EC2",
+        "problem_statement": "Security groups allow all outbound traffic to the internet (0.0.0.0/0), which can enable data exfiltration.",
+        "severity_score": 35,
+        "severity_level": "Low",
+        "resources_affected": permissive_sgs,
+        "recommendation": "Restrict outbound rules to only required destinations and ports. Use VPC endpoints for AWS service access.",
+        "additional_info": {"total_scanned": len(all_sgs), "affected": len(permissive_sgs)},
+    }
+
+
+def check_ec2_iam_role_attached(session, scan_meta_data):
+    print("check_ec2_iam_role_attached")
+    ec2 = session.client("ec2")
+    reservations = ec2.describe_instances().get("Reservations", [])
+    resources_affected = []
+
+    all_instances = []
+    for reservation in reservations:
+        for instance in reservation["Instances"]:
+            # Skip terminated instances
+            if instance.get("State", {}).get("Name") == "terminated":
+                continue
+            all_instances.append(instance)
+
+            iam_profile = instance.get("IamInstanceProfile")
+            if not iam_profile:
+                instance_name = next(
+                    (tag["Value"] for tag in instance.get("Tags", []) if tag["Key"] == "Name"),
+                    "",
+                )
+                resources_affected.append({
+                    "resource_name": instance["InstanceId"],
+                    "instance_name": instance_name,
+                    "instance_type": instance.get("InstanceType"),
+                    "state": instance.get("State", {}).get("Name"),
+                    "launch_time": str(instance.get("LaunchTime")),
+                    "issue": "EC2 instance has no IAM instance profile attached.",
+                })
+
+    scan_meta_data["total_scanned"] += len(all_instances)
+    scan_meta_data["affected"] += len(resources_affected)
+    scan_meta_data["Medium"] += len(resources_affected)
+    if "EC2" not in scan_meta_data["services_scanned"]:
+        scan_meta_data["services_scanned"].append("EC2")
+
+    return {
+        "check_name": "EC2 Instances Without IAM Role",
+        "service": "EC2",
+        "problem_statement": "EC2 instances without an IAM instance profile may rely on hardcoded access keys for AWS API access.",
+        "severity_score": 60,
+        "severity_level": "Medium",
+        "resources_affected": resources_affected,
+        "recommendation": "Attach an IAM instance profile with least-privilege permissions to all EC2 instances instead of using access keys.",
+        "additional_info": {"total_scanned": len(all_instances), "affected": len(resources_affected)},
+    }
+
+
+def check_ec2_userdata_secrets(session, scan_meta_data):
+    print("check_ec2_userdata_secrets")
+    import base64
+    import re
+
+    ec2 = session.client("ec2")
+    reservations = ec2.describe_instances().get("Reservations", [])
+    resources_affected = []
+
+    # Patterns that indicate hardcoded secrets
+    secret_patterns = [
+        (re.compile(r"AKIA[0-9A-Z]{16}", re.IGNORECASE), "AWS Access Key ID"),
+        (re.compile(r"(?:aws_secret_access_key|secret_key|secretkey)\s*[=:]\s*\S+", re.IGNORECASE), "AWS Secret Key reference"),
+        (re.compile(r"(?:password|passwd|pwd)\s*[=:]\s*\S+", re.IGNORECASE), "Password"),
+        (re.compile(r"(?:api_key|apikey|api-key)\s*[=:]\s*\S+", re.IGNORECASE), "API Key"),
+        (re.compile(r"(?:token|auth_token|access_token)\s*[=:]\s*\S+", re.IGNORECASE), "Token"),
+        (re.compile(r"(?:private_key|privatekey)\s*[=:]\s*\S+", re.IGNORECASE), "Private Key reference"),
+        (re.compile(r"-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----", re.IGNORECASE), "Private Key block"),
+    ]
+
+    all_instances = []
+    for reservation in reservations:
+        for instance in reservation["Instances"]:
+            if instance.get("State", {}).get("Name") == "terminated":
+                continue
+            all_instances.append(instance)
+
+            instance_id = instance["InstanceId"]
+            try:
+                userdata_response = ec2.describe_instance_attribute(
+                    InstanceId=instance_id, Attribute="userData"
+                )
+                userdata_encoded = userdata_response.get("UserData", {}).get("Value", "")
+
+                if not userdata_encoded:
+                    continue
+
+                try:
+                    userdata = base64.b64decode(userdata_encoded).decode("utf-8", errors="replace")
+                except Exception:
+                    continue
+
+                found_secrets = []
+                for pattern, label in secret_patterns:
+                    if pattern.search(userdata):
+                        found_secrets.append(label)
+
+                if found_secrets:
+                    instance_name = next(
+                        (tag["Value"] for tag in instance.get("Tags", []) if tag["Key"] == "Name"),
+                        "",
+                    )
+                    resources_affected.append({
+                        "resource_name": instance_id,
+                        "instance_name": instance_name,
+                        "instance_type": instance.get("InstanceType"),
+                        "secrets_found": ", ".join(found_secrets),
+                        "issue": f"UserData contains potential secrets: {', '.join(found_secrets)}.",
+                    })
+
+            except Exception as e:
+                print(f"Error checking UserData for {instance_id}: {e}")
+                continue
+
+    scan_meta_data["total_scanned"] += len(all_instances)
+    scan_meta_data["affected"] += len(resources_affected)
+    scan_meta_data["High"] += len(resources_affected)
+    if "EC2" not in scan_meta_data["services_scanned"]:
+        scan_meta_data["services_scanned"].append("EC2")
+
+    return {
+        "check_name": "Hardcoded Secrets in EC2 User Data",
+        "service": "EC2",
+        "problem_statement": "EC2 instance User Data contains hardcoded secrets such as access keys, passwords, or private keys.",
+        "severity_score": 85,
+        "severity_level": "High",
+        "resources_affected": resources_affected,
+        "recommendation": "Remove secrets from User Data. Use IAM roles, AWS Secrets Manager, or SSM Parameter Store instead.",
+        "additional_info": {"total_scanned": len(all_instances), "affected": len(resources_affected)},
+    }
+
+
+def check_efs_access_points(session, scan_meta_data):
+    print("check_efs_access_points")
+    efs = session.client("efs")
+    file_systems = efs.describe_file_systems().get("FileSystems", [])
+    resources = []
+
+    for fs in file_systems:
+        fs_id = fs["FileSystemId"]
+        access_points = efs.describe_access_points(FileSystemId=fs_id).get("AccessPoints", [])
+        if not access_points:
+            resources.append({
+                "resource_name": fs_id,
+                "name": fs.get("Name", "Unnamed"),
+                "lifecycle_state": fs.get("LifeCycleState"),
+                "issue": "No access points configured.",
+            })
+
+    scan_meta_data["total_scanned"] += len(file_systems)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Low"] += len(resources)
+    if "EFS" not in scan_meta_data["services_scanned"]:
+        scan_meta_data["services_scanned"].append("EFS")
+
+    return {
+        "check_name": "EFS Access Points",
+        "service": "EFS",
+        "problem_statement": "EFS file systems have no access points configured, lacking fine-grained access control.",
+        "severity_score": 35,
+        "severity_level": "Low",
+        "resources_affected": resources,
+        "recommendation": "Create EFS access points to enforce user identity, root directory, and POSIX permissions for applications.",
+        "additional_info": {"total_scanned": len(file_systems), "affected": len(resources)},
+    }
+
+
+def check_efs_security_groups(session, scan_meta_data):
+    print("check_efs_security_groups")
+    efs = session.client("efs")
+    ec2 = session.client("ec2")
+    file_systems = efs.describe_file_systems().get("FileSystems", [])
+    resources = []
+
+    for fs in file_systems:
+        fs_id = fs["FileSystemId"]
+        mount_targets = efs.describe_mount_targets(FileSystemId=fs_id).get("MountTargets", [])
+
+        for mt in mount_targets:
+            mt_id = mt["MountTargetId"]
+            sg_ids = efs.describe_mount_target_security_groups(MountTargetId=mt_id).get("SecurityGroups", [])
+            if not sg_ids:
+                continue
+            try:
+                sgs = ec2.describe_security_groups(GroupIds=sg_ids)["SecurityGroups"]
+            except Exception:
+                continue
+
+            for sg in sgs:
+                for perm in sg.get("IpPermissions", []):
+                    for ip_range in perm.get("IpRanges", []):
+                        if ip_range.get("CidrIp") == "0.0.0.0/0":
+                            resources.append({
+                                "resource_name": fs_id,
+                                "name": fs.get("Name", "Unnamed"),
+                                "mount_target": mt_id,
+                                "security_group": sg["GroupId"],
+                                "open_port": f"{perm.get('FromPort', 'all')}-{perm.get('ToPort', 'all')}",
+                                "issue": f"Mount target SG {sg['GroupId']} allows inbound from 0.0.0.0/0.",
+                            })
+                            break
+
+    scan_meta_data["total_scanned"] += len(file_systems)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["High"] += len(resources)
+    if "EFS" not in scan_meta_data["services_scanned"]:
+        scan_meta_data["services_scanned"].append("EFS")
+
+    return {
+        "check_name": "EFS Security Groups Restricted",
+        "service": "EFS",
+        "problem_statement": "EFS mount targets have security groups allowing inbound traffic from anywhere (0.0.0.0/0).",
+        "severity_score": 80,
+        "severity_level": "High",
+        "resources_affected": resources,
+        "recommendation": "Restrict EFS mount target security groups to specific VPC CIDR ranges or application security groups only.",
+        "additional_info": {"total_scanned": len(file_systems), "affected": len(resources)},
     }

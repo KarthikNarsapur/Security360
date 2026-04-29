@@ -15,7 +15,20 @@ from modules.AwsChecks import (
     ssm_checks,
     secrets_manager_checks,
     guardduty_checks,
-    cloudtrail_checks
+    cloudtrail_checks,
+    lambda_fun,
+    ecs_checks,
+    dynamodb,
+    elasticache,
+    tagging_checks,
+    backup_checks,
+    sns_checks,
+    ou,
+    attack_path_analysis,
+    identity_risk_scoring,
+    data_sensitivity,
+    runtime_behavior,
+    unified_risk_engine,
 )
 from Model.model import AccessTokenModel
 from utils.upload_to_s3 import upload_to_s3
@@ -44,6 +57,16 @@ def run_checks(session, scan_meta_data={}, security_services_scan={}):
         session
     )
     security_services_scan["AWS WAF"] = security_checks.check_waf_enabled(session)
+    security_services_scan["KMS Key Policies"] = security_checks.check_kms_permissive_policies(session)
+    security_services_scan["CloudWatch Log Retention"] = security_checks.check_cloudwatch_log_retention(session)
+    security_services_scan["CloudWatch Critical Alarms"] = security_checks.check_cloudwatch_critical_alarms(session)
+    security_services_scan["ELB Access Logs"] = security_checks.check_elb_access_logs(session)
+    security_services_scan["AWS Shield Advanced"] = security_checks.check_shield_advanced(session)
+    security_services_scan["HTTPS Enforcement"] = security_checks.check_https_enforcement(session)
+    security_services_scan["TLS Policy Strength"] = security_checks.check_tls_policy_strength(session)
+    security_services_scan["WAF on API Gateway"] = security_checks.check_waf_on_api_gateway(session)
+    security_services_scan["Unresolved Findings"] = security_checks.check_unresolved_security_findings(session)
+    security_services_scan["Automated Remediation"] = security_checks.check_automated_remediation(session)
     return {
         "default_vpcs": vpc_checks.check_default_vpcs(session, scan_meta_data),
         "open_security_groups": ec2_checks.check_open_security_groups(
@@ -73,6 +96,105 @@ def run_checks(session, scan_meta_data={}, security_services_scan={}):
             session, scan_meta_data
         ),
         "ssm_patch_manager": ssm_checks.non_compliant_patch_instances(
+            session, scan_meta_data
+        ),
+        "subnet_separation": vpc_checks.check_subnet_separation(
+            session, scan_meta_data
+        ),
+        "nat_gateway_private_subnets": vpc_checks.check_nat_gateway_for_private_subnets(
+            session, scan_meta_data
+        ),
+        "private_resources_in_public_subnets": vpc_checks.check_private_subnet_direct_internet_access(
+            session, scan_meta_data
+        ),
+        "vpc_endpoints": vpc_checks.check_vpc_endpoints(
+            session, scan_meta_data
+        ),
+        "overly_permissive_outbound_sg": ec2_checks.check_overly_permissive_outbound_sg(
+            session, scan_meta_data
+        ),
+        "ec2_without_iam_role": ec2_checks.check_ec2_iam_role_attached(
+            session, scan_meta_data
+        ),
+        "ec2_userdata_secrets": ec2_checks.check_ec2_userdata_secrets(
+            session, scan_meta_data
+        ),
+        "lambda_env_kms_encryption": lambda_fun.check_lambda_env_kms_encryption(
+            session, scan_meta_data
+        ),
+        "lambda_env_secrets": lambda_fun.check_lambda_env_secrets(
+            session, scan_meta_data
+        ),
+        "lambda_timeout": lambda_fun.check_lambda_timeout(
+            session, scan_meta_data
+        ),
+        "lambda_vpc_enabled": lambda_fun.check_lambda_vpc_enabled(
+            session, scan_meta_data
+        ),
+        "ecs_privileged_containers": ecs_checks.check_ecs_privileged_containers(
+            session, scan_meta_data
+        ),
+        "ecs_root_user_containers": ecs_checks.check_ecs_root_user_containers(
+            session, scan_meta_data
+        ),
+        "ecs_task_role_credentials": ecs_checks.check_ecs_task_role_and_credentials(
+            session, scan_meta_data
+        ),
+        "ecs_plaintext_secrets": ecs_checks.check_ecs_secrets_from_secrets_manager(
+            session, scan_meta_data
+        ),
+        "ecs_readonly_root_filesystem": ecs_checks.check_ecs_readonly_root_filesystem(
+            session, scan_meta_data
+        ),
+        "ecs_logging_enabled": ecs_checks.check_ecs_logging_enabled(
+            session, scan_meta_data
+        ),
+        "rds_automated_backups": rds_checks.check_rds_automated_backups(
+            session, scan_meta_data
+        ),
+        "rds_multi_az": rds_checks.check_rds_multi_az(
+            session, scan_meta_data
+        ),
+        "rds_iam_authentication": rds_checks.check_rds_iam_authentication(
+            session, scan_meta_data
+        ),
+        "rds_default_ports_exposed": rds_checks.check_rds_default_ports_exposed(
+            session, scan_meta_data
+        ),
+        "rds_security_groups_restricted": rds_checks.check_rds_security_groups_restricted(
+            session, scan_meta_data
+        ),
+        "dynamodb_pitr": dynamodb.check_dynamodb_pitr(
+            session, scan_meta_data
+        ),
+        "elasticache_transit_encryption": elasticache.check_elasticache_transit_encryption(
+            session, scan_meta_data
+        ),
+        "elasticache_auth_enabled": elasticache.check_elasticache_auth_enabled(
+            session, scan_meta_data
+        ),
+        "elasticache_public_accessibility": elasticache.check_elasticache_public_accessibility(
+            session, scan_meta_data
+        ),
+        "efs_access_points": ec2_checks.check_efs_access_points(
+            session, scan_meta_data
+        ),
+        "efs_security_groups": ec2_checks.check_efs_security_groups(
+            session, scan_meta_data
+        ),
+        "secrets_manager_usage": secrets_manager_checks.check_secrets_manager_usage(
+            session, scan_meta_data
+        ),
+        "tagging_enforcement": tagging_checks.check_required_tags(
+            session, scan_meta_data
+        ),
+        "backup_policies": backup_checks.check_backup_policies(
+            session, scan_meta_data
+        ),
+        "sns_alert_integration": sns_checks.check_sns_alert_integration(
+            session, scan_meta_data
+        ),
+        "runtime_behavior": runtime_behavior.analyze_runtime_behavior(
             session, scan_meta_data
         ),
         
@@ -156,6 +278,53 @@ def run_global_services_checks(session, scan_meta_data_global_services):
         ),
         "cloudtrail_and_logging": cloudtrail_checks.cloudtrail_and_logging_check(
             session=session
+        ),
+        "wildcard_principal_bucket_policies": s3_checks.wildcard_principal_bucket_policies(
+            session, scan_meta_data_global_services
+        ),
+        "cross_account_bucket_sharing": s3_checks.cross_account_bucket_sharing(
+            session, scan_meta_data_global_services
+        ),
+        "root_account_recent_usage": iam_checks.root_account_recent_usage(
+            iam=iam,
+            scan_meta_data_global_services=scan_meta_data_global_services,
+            account_summary=account_summary,
+        ),
+        "users_with_administrator_access": iam_checks.users_with_administrator_access(
+            iam=iam,
+            scan_meta_data_global_services=scan_meta_data_global_services,
+            users=users,
+        ),
+        "wildcard_principal_in_trust_policies": iam_checks.wildcard_principal_in_trust_policies(
+            iam=iam,
+            scan_meta_data_global_services=scan_meta_data_global_services,
+            roles=roles,
+        ),
+        "password_policy_complexity": iam_checks.password_policy_complexity(
+            iam=iam,
+            scan_meta_data_global_services=scan_meta_data_global_services,
+        ),
+        "break_glass_role": iam_checks.check_break_glass_role(
+            iam=iam,
+            scan_meta_data_global_services=scan_meta_data_global_services,
+            roles=roles,
+        ),
+        "cloudtrail_log_immutability": cloudtrail_checks.check_cloudtrail_log_immutability(
+            session=session,
+        ),
+        "centralized_logging_account": cloudtrail_checks.check_centralized_logging_account(
+            session=session,
+        ),
+        "scps_applied": ou.check_scps_applied(session=session),
+        "region_restriction": ou.check_region_restriction(session=session),
+        "service_restriction": ou.check_service_restriction(session=session),
+        "identity_risk_scoring": identity_risk_scoring.analyze_identity_risks(
+            session=session,
+            scan_meta_data_global_services=scan_meta_data_global_services,
+        ),
+        "data_sensitivity": data_sensitivity.analyze_data_sensitivity(
+            session=session,
+            scan_meta_data_global_services=scan_meta_data_global_services,
         ),
     }
 
@@ -399,6 +568,36 @@ def run_aws_scan(data: AccessTokenModel):
                     notifications["error"].append(
                         f"Scan failed in regions: {', '.join(failed_regions)} for account: {account_id}"
                     )
+
+                # step 4.5: Run cross-service attack path analysis
+                try:
+                    # Use first region's results for correlation (most checks are the same across regions)
+                    first_regional = regional_results[0]["data"] if regional_results else {}
+                    attack_path_meta = {
+                        "total_scanned": 0, "affected": 0,
+                        "High": 0, "Medium": 0, "Low": 0, "Critical": 0,
+                        "services_scanned": [],
+                    }
+                    attack_path_result = attack_path_analysis.analyze_attack_paths(
+                        session, first_regional, global_services_scan_results, attack_path_meta
+                    )
+                    global_services_scan_results["attack_path_analysis"] = attack_path_result
+                except Exception as e:
+                    print(f"Error in attack path analysis for {account_id}: {e}")
+
+                # step 4.6: Run unified risk engine
+                try:
+                    unified_risk = unified_risk_engine.run_unified_risk_engine(
+                        regional_results_list=regional_results,
+                        global_results=global_services_scan_results,
+                        attack_path_results=global_services_scan_results.get("attack_path_analysis"),
+                        identity_risk_results=global_services_scan_results.get("identity_risk_scoring"),
+                        data_sensitivity_results=global_services_scan_results.get("data_sensitivity"),
+                        runtime_results_list=regional_results,
+                    )
+                    global_services_scan_results["unified_risk_engine"] = unified_risk
+                except Exception as e:
+                    print(f"Error in unified risk engine for {account_id}: {e}")
 
                 # step 5: save report and upload to S3
                 try:

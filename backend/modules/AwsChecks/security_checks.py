@@ -274,3 +274,458 @@ def check_waf_enabled(session):
         "recommendation": "Consider enabling AWS WAF to protect your web applications from common web exploits and bots.",
         "is_enabled": "Yes" if enabled else "No",
     }
+
+
+import json
+
+
+def check_kms_permissive_policies(session):
+    print("check_kms_permissive_policies")
+    kms = session.client("kms")
+    resources = []
+
+    paginator = kms.get_paginator("list_keys")
+    all_keys = []
+    for page in paginator.paginate():
+        all_keys.extend(page.get("Keys", []))
+
+    for key in all_keys:
+        key_id = key["KeyId"]
+        try:
+            meta = kms.describe_key(KeyId=key_id)["KeyMetadata"]
+            if meta.get("KeyManager") != "CUSTOMER":
+                continue
+            if meta.get("KeyState") != "Enabled":
+                continue
+
+            policy_str = kms.get_key_policy(KeyId=key_id, PolicyName="default")["Policy"]
+            policy = json.loads(policy_str)
+
+            for stmt in policy.get("Statement", []):
+                if stmt.get("Effect") != "Allow":
+                    continue
+                principal = stmt.get("Principal", {})
+                has_wildcard = False
+                if principal == "*":
+                    has_wildcard = True
+                elif isinstance(principal, dict):
+                    for v in principal.values():
+                        vals = v if isinstance(v, list) else [v]
+                        if "*" in vals:
+                            has_wildcard = True
+                            break
+
+                if has_wildcard and not stmt.get("Condition"):
+                    resources.append({
+                        "resource_name": key_id,
+                        "key_arn": meta.get("Arn"),
+                        "description": meta.get("Description", ""),
+                        "statement_sid": stmt.get("Sid", "N/A"),
+                        "issue": "Key policy grants access to Principal \"*\" without conditions.",
+                    })
+                    break
+        except Exception as e:
+            print(f"Error checking KMS key {key_id}: {e}")
+
+    return {
+        "check_name": "KMS Overly Permissive Key Policies",
+        "service": "KMS",
+        "problem_statement": "Customer-managed KMS keys have policies granting access to Principal \"*\" without restrictive conditions.",
+        "severity_score": 80,
+        "severity_level": "High",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Restrict KMS key policies to specific AWS accounts, roles, or services. Add conditions where broad access is needed.",
+    }
+
+
+def check_cloudwatch_log_retention(session):
+    print("check_cloudwatch_log_retention")
+    logs = session.client("logs")
+    resources = []
+
+    paginator = logs.get_paginator("describe_log_groups")
+    all_groups = []
+    for page in paginator.paginate():
+        all_groups.extend(page.get("logGroups", []))
+
+    for group in all_groups:
+        if not group.get("retentionInDays"):
+            resources.append({
+                "resource_name": group.get("logGroupName"),
+                "stored_bytes": group.get("storedBytes", 0),
+                "issue": "Log group has no retention policy (logs never expire).",
+            })
+
+    return {
+        "check_name": "CloudWatch Log Retention",
+        "service": "CloudWatch",
+        "problem_statement": "CloudWatch Log Groups have no retention policy, causing unbounded log storage and costs.",
+        "severity_score": 40,
+        "severity_level": "Low",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Set a retention policy on all CloudWatch Log Groups (e.g., 30, 60, or 90 days).",
+    }
+
+
+def check_cloudwatch_critical_alarms(session):
+    print("check_cloudwatch_critical_alarms")
+    logs = session.client("logs")
+    resources = []
+
+    required_filters = {
+        "RootAccountUsage": '{ $.userIdentity.type = "Root" }',
+        "UnauthorizedAPICalls": '{ ($.errorCode = "*UnauthorizedAccess*") || ($.errorCode = "AccessDenied*") }',
+        "IAMPolicyChanges": '{ ($.eventName = "DeleteGroupPolicy") || ($.eventName = "PutGroupPolicy") || ($.eventName = "CreatePolicy") || ($.eventName = "DeletePolicy") }',
+        "ConsoleSignInFailures": '{ ($.eventName = "ConsoleLogin") && ($.errorMessage = "Failed authentication") }',
+    }
+
+    paginator = logs.get_paginator("describe_log_groups")
+    all_groups = []
+    for page in paginator.paginate():
+        all_groups.extend(page.get("logGroups", []))
+
+    found_filters = set()
+    for group in all_groups:
+        try:
+            filters = logs.describe_metric_filters(logGroupName=group["logGroupName"]).get("metricFilters", [])
+            for f in filters:
+                pattern = f.get("filterPattern", "")
+                for name, expected in required_filters.items():
+                    if name not in found_filters:
+                        # Simple heuristic: check if key terms are present
+                        if "Root" in pattern and name == "RootAccountUsage":
+                            found_filters.add(name)
+                        elif "UnauthorizedAccess" in pattern or "AccessDenied" in pattern:
+                            found_filters.add("UnauthorizedAPICalls")
+                        elif "DeleteGroupPolicy" in pattern or "PutGroupPolicy" in pattern or "CreatePolicy" in pattern:
+                            found_filters.add("IAMPolicyChanges")
+                        elif "ConsoleLogin" in pattern and "Failed" in pattern:
+                            found_filters.add("ConsoleSignInFailures")
+        except Exception:
+            continue
+
+    missing = [name for name in required_filters if name not in found_filters]
+    if missing:
+        resources.append({
+            "resource_name": "CloudWatch Metric Filters",
+            "missing_filters": ", ".join(missing),
+            "issue": f"Missing {len(missing)} critical metric filter(s): {', '.join(missing)}.",
+        })
+
+    return {
+        "check_name": "CloudWatch Critical Event Alarms",
+        "service": "CloudWatch",
+        "problem_statement": "CloudWatch is missing metric filters and alarms for critical security events.",
+        "severity_score": 65,
+        "severity_level": "Medium",
+        "is_enabled": "Yes" if not missing else "No",
+        "resources_affected": resources,
+        "recommendation": "Create metric filters and alarms for root usage, unauthorized API calls, IAM policy changes, and console sign-in failures.",
+    }
+
+
+def check_elb_access_logs(session):
+    print("check_elb_access_logs")
+    elbv2 = session.client("elbv2")
+    resources = []
+
+    lbs = elbv2.describe_load_balancers().get("LoadBalancers", [])
+    for lb in lbs:
+        lb_arn = lb["LoadBalancerArn"]
+        lb_name = lb["LoadBalancerName"]
+        try:
+            attrs = elbv2.describe_load_balancer_attributes(LoadBalancerArn=lb_arn).get("Attributes", [])
+            access_logs_enabled = False
+            for attr in attrs:
+                if attr.get("Key") == "access_logs.s3.enabled" and attr.get("Value") == "true":
+                    access_logs_enabled = True
+                    break
+            if not access_logs_enabled:
+                resources.append({
+                    "resource_name": lb_name,
+                    "lb_type": lb.get("Type"),
+                    "lb_arn": lb_arn,
+                    "issue": "Access logging is not enabled.",
+                })
+        except Exception as e:
+            print(f"Error checking ELB access logs for {lb_name}: {e}")
+
+    return {
+        "check_name": "ELB Access Logs Enabled",
+        "service": "ELB",
+        "problem_statement": "Load balancers do not have access logging enabled for audit and troubleshooting.",
+        "severity_score": 50,
+        "severity_level": "Medium",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Enable access logging on all ALBs/NLBs and configure an S3 bucket for log storage.",
+    }
+
+
+def check_shield_advanced(session):
+    print("check_shield_advanced")
+    resources = []
+    try:
+        shield = session.client("shield", region_name="us-east-1")
+        subscription = shield.describe_subscription()
+        # If we get here, Shield Advanced is active
+    except shield.exceptions.ResourceNotFoundException:
+        resources.append({
+            "resource_name": "AWS Shield Advanced",
+            "issue": "Shield Advanced is not subscribed.",
+        })
+    except Exception as e:
+        if "ResourceNotFoundException" in str(e) or "SubscriptionNotFoundException" in str(e):
+            resources.append({
+                "resource_name": "AWS Shield Advanced",
+                "issue": "Shield Advanced is not subscribed.",
+            })
+        else:
+            print(f"Error checking Shield Advanced: {e}")
+
+    return {
+        "check_name": "AWS Shield Advanced",
+        "service": "Shield",
+        "problem_statement": "AWS Shield Advanced is not enabled for DDoS protection.",
+        "severity_score": 45,
+        "severity_level": "Medium",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Consider enabling AWS Shield Advanced for enhanced DDoS protection on critical resources.",
+    }
+
+
+def check_https_enforcement(session):
+    print("check_https_enforcement")
+    resources = []
+
+    # Check ALB listeners
+    try:
+        elbv2 = session.client("elbv2")
+        lbs = elbv2.describe_load_balancers().get("LoadBalancers", [])
+        for lb in lbs:
+            if lb.get("Type") != "application":
+                continue
+            listeners = elbv2.describe_listeners(LoadBalancerArn=lb["LoadBalancerArn"]).get("Listeners", [])
+            for listener in listeners:
+                if listener.get("Protocol") == "HTTP":
+                    # Check if it redirects to HTTPS
+                    actions = listener.get("DefaultActions", [])
+                    is_redirect = any(
+                        a.get("Type") == "redirect" and a.get("RedirectConfig", {}).get("Protocol") == "HTTPS"
+                        for a in actions
+                    )
+                    if not is_redirect:
+                        resources.append({
+                            "resource_name": lb["LoadBalancerName"],
+                            "service_type": "ALB",
+                            "listener_port": listener.get("Port"),
+                            "issue": "HTTP listener without HTTPS redirect.",
+                        })
+    except Exception as e:
+        print(f"Error checking ALB HTTPS: {e}")
+
+    # Check API Gateway
+    try:
+        apigw = session.client("apigateway")
+        apis = apigw.get_rest_apis().get("items", [])
+        for api in apis:
+            if api.get("endpointConfiguration", {}).get("types", []) != ["EDGE"]:
+                continue
+            # REST APIs are HTTPS by default, but check for HTTP API (apigatewayv2)
+    except Exception:
+        pass
+
+    try:
+        apigwv2 = session.client("apigatewayv2")
+        http_apis = apigwv2.get_apis().get("Items", [])
+        for api in http_apis:
+            if not api.get("DisableExecuteApiEndpoint", False):
+                # HTTP APIs support both HTTP and HTTPS by default
+                pass
+    except Exception:
+        pass
+
+    return {
+        "check_name": "HTTPS Enforced Everywhere",
+        "service": "ELB",
+        "problem_statement": "Load balancers have HTTP listeners without HTTPS redirect, allowing unencrypted traffic.",
+        "severity_score": 70,
+        "severity_level": "Medium",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Redirect all HTTP listeners to HTTPS. Ensure all endpoints enforce TLS.",
+    }
+
+
+def check_tls_policy_strength(session):
+    print("check_tls_policy_strength")
+    resources = []
+
+    weak_policies = [
+        "ELBSecurityPolicy-2016-08", "ELBSecurityPolicy-TLS-1-0-2015-04",
+        "ELBSecurityPolicy-TLS-1-1-2017-01",
+    ]
+
+    try:
+        elbv2 = session.client("elbv2")
+        lbs = elbv2.describe_load_balancers().get("LoadBalancers", [])
+        for lb in lbs:
+            listeners = elbv2.describe_listeners(LoadBalancerArn=lb["LoadBalancerArn"]).get("Listeners", [])
+            for listener in listeners:
+                if listener.get("Protocol") == "HTTPS":
+                    ssl_policy = listener.get("SslPolicy", "")
+                    if ssl_policy in weak_policies:
+                        resources.append({
+                            "resource_name": lb["LoadBalancerName"],
+                            "service_type": "ALB/NLB",
+                            "listener_port": listener.get("Port"),
+                            "ssl_policy": ssl_policy,
+                            "issue": f"Weak TLS policy: {ssl_policy}.",
+                        })
+    except Exception as e:
+        print(f"Error checking TLS policies: {e}")
+
+    return {
+        "check_name": "Weak TLS Policies",
+        "service": "ELB",
+        "problem_statement": "Load balancers use outdated TLS policies that support TLS 1.0 or 1.1.",
+        "severity_score": 65,
+        "severity_level": "Medium",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Update to ELBSecurityPolicy-TLS13-1-2-2021-06 or ELBSecurityPolicy-FS-1-2-Res-2020-10 for TLS 1.2+ only.",
+    }
+
+
+def check_waf_on_api_gateway(session):
+    print("check_waf_on_api_gateway")
+    resources = []
+
+    try:
+        apigw = session.client("apigateway")
+        wafv2 = session.client("wafv2")
+        stages_to_check = []
+
+        apis = apigw.get_rest_apis().get("items", [])
+        for api in apis:
+            api_id = api["id"]
+            api_name = api.get("name", api_id)
+            try:
+                stages = apigw.get_stages(restApiId=api_id).get("item", [])
+                for stage in stages:
+                    stage_name = stage.get("stageName")
+                    stage_arn = f"arn:aws:apigateway:{session.region_name}::/restapis/{api_id}/stages/{stage_name}"
+                    try:
+                        waf_resp = wafv2.get_web_acl_for_resource(ResourceArn=stage_arn)
+                        if not waf_resp.get("WebACL"):
+                            resources.append({
+                                "resource_name": f"{api_name}/{stage_name}",
+                                "api_id": api_id,
+                                "stage": stage_name,
+                                "issue": "No WAF Web ACL associated with API Gateway stage.",
+                            })
+                    except Exception:
+                        resources.append({
+                            "resource_name": f"{api_name}/{stage_name}",
+                            "api_id": api_id,
+                            "stage": stage_name,
+                            "issue": "No WAF Web ACL associated with API Gateway stage.",
+                        })
+            except Exception as e:
+                print(f"Error checking stages for API {api_name}: {e}")
+    except Exception as e:
+        print(f"Error checking WAF on API Gateway: {e}")
+
+    return {
+        "check_name": "WAF on API Gateway",
+        "service": "API Gateway",
+        "problem_statement": "API Gateway stages do not have AWS WAF Web ACLs associated for protection against web attacks.",
+        "severity_score": 70,
+        "severity_level": "Medium",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Associate a WAF Web ACL with all API Gateway stages to protect against common web exploits.",
+    }
+
+
+def check_unresolved_security_findings(session):
+    print("check_unresolved_security_findings")
+    resources = []
+
+    # Check GuardDuty
+    try:
+        gd = session.client("guardduty")
+        detectors = gd.list_detectors().get("DetectorIds", [])
+        if detectors:
+            detector_id = detectors[0]
+            findings = gd.list_findings(
+                DetectorId=detector_id,
+                FindingCriteria={
+                    "Criterion": {
+                        "severity": {"Gte": 7},
+                        "service.archived": {"Eq": ["false"]},
+                    }
+                },
+            ).get("FindingIds", [])
+            if findings:
+                resources.append({
+                    "resource_name": "GuardDuty",
+                    "finding_count": len(findings),
+                    "issue": f"{len(findings)} unresolved HIGH/CRITICAL GuardDuty finding(s).",
+                })
+    except Exception as e:
+        print(f"Error checking GuardDuty findings: {e}")
+
+    return {
+        "check_name": "Unresolved Security Findings",
+        "service": "GuardDuty",
+        "problem_statement": "There are unresolved HIGH or CRITICAL security findings that require attention.",
+        "severity_score": 75,
+        "severity_level": "High",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Review and remediate all HIGH/CRITICAL findings in GuardDuty and Security Hub.",
+    }
+
+
+def check_automated_remediation(session):
+    print("check_automated_remediation")
+    resources = []
+
+    try:
+        config_client = session.client("config")
+        rules = config_client.describe_config_rules().get("ConfigRules", [])
+        rules_with_remediation = 0
+        for rule in rules:
+            try:
+                remediations = config_client.describe_remediation_configurations(
+                    ConfigRuleNames=[rule["ConfigRuleName"]]
+                ).get("RemediationConfigurations", [])
+                if remediations:
+                    rules_with_remediation += 1
+            except Exception:
+                continue
+
+        if rules and rules_with_remediation == 0:
+            resources.append({
+                "resource_name": "AWS Config Rules",
+                "total_rules": len(rules),
+                "rules_with_remediation": 0,
+                "issue": "No Config Rules have auto-remediation configured.",
+            })
+    except Exception as e:
+        print(f"Error checking automated remediation: {e}")
+
+    return {
+        "check_name": "Automated Remediation",
+        "service": "Config",
+        "problem_statement": "No AWS Config Rules have automated remediation actions configured.",
+        "severity_score": 40,
+        "severity_level": "Low",
+        "is_enabled": "Yes" if not resources else "No",
+        "resources_affected": resources,
+        "recommendation": "Configure auto-remediation on critical Config Rules using SSM Automation documents or Lambda functions.",
+    }

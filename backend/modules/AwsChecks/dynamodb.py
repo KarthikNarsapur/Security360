@@ -92,3 +92,42 @@ def check_public_dynamodb_access(session, iam_client=None):
 #         # Public access via IAM needs to be checked outside of table context
 
 #     return results
+
+
+def check_dynamodb_pitr(session, scan_meta_data):
+    print("check_dynamodb_pitr")
+    dynamodb = session.client("dynamodb")
+    all_tables = dynamodb.list_tables().get("TableNames", [])
+    resources = []
+
+    for table_name in all_tables:
+        try:
+            backup_info = dynamodb.describe_continuous_backups(TableName=table_name)
+            pitr = backup_info.get("ContinuousBackupsDescription", {}).get(
+                "PointInTimeRecoveryDescription", {}
+            )
+            if pitr.get("PointInTimeRecoveryStatus") != "ENABLED":
+                resources.append({
+                    "resource_name": table_name,
+                    "pitr_status": pitr.get("PointInTimeRecoveryStatus", "DISABLED"),
+                    "issue": "Point-in-time recovery is not enabled.",
+                })
+        except Exception as e:
+            print(f"Error checking PITR for {table_name}: {e}")
+
+    scan_meta_data["total_scanned"] += len(all_tables)
+    scan_meta_data["affected"] += len(resources)
+    scan_meta_data["Medium"] += len(resources)
+    if "DynamoDB" not in scan_meta_data["services_scanned"]:
+        scan_meta_data["services_scanned"].append("DynamoDB")
+
+    return {
+        "check_name": "DynamoDB Point-in-Time Recovery",
+        "service": "DynamoDB",
+        "problem_statement": "DynamoDB tables do not have point-in-time recovery (PITR) enabled, risking data loss from accidental deletes or writes.",
+        "severity_score": 60,
+        "severity_level": "Medium",
+        "resources_affected": resources,
+        "recommendation": "Enable point-in-time recovery on all DynamoDB tables to allow restoration to any point within the last 35 days.",
+        "additional_info": {"total_scanned": len(all_tables), "affected": len(resources)},
+    }
