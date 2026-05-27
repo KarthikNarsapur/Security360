@@ -21,12 +21,16 @@ def _get_framework_registry():
     from modules.SEBI.sebi_run_checks import run_sebi_checks
     from modules.PCIDSS.pcidss_run_checks import run_pcidss_checks
     from modules.frameworks.DPDP.dpdp_run_checks import run_dpdp_global_checks, run_dpdp_regional_checks
+    from modules.frameworks.DPDP.dpdp_rules_2025_run_checks import (
+        run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks,
+    )
 
     return {
         "rbi": (run_rbi_checks, None, "global_only"),
         "sebi": (run_sebi_checks, None, "global_only"),
         "pcidss": (run_pcidss_checks, None, "global_only"),
         "dpdp": (run_dpdp_global_checks, run_dpdp_regional_checks, "hybrid"),
+        "dpdp_rules_2025": (run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks, "hybrid"),
     }
 
 
