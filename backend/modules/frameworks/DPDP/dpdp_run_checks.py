@@ -102,6 +102,20 @@ def run_dpdp_checks(session, scan_meta_data):
 
 
 async def dpdp_scan_function(data):
-    """Entry point for direct API calls."""
+    """Entry point for direct API calls — DPDP Act 2023 checks."""
     from utils.framework_scan import run_framework_scan
     return run_framework_scan(data, framework="dpdp")
+
+
+async def dpdp_full_scan_function(data):
+    """Entry point for combined DPDP Act 2023 + Rules 2025 scan."""
+    from utils.framework_scan import run_framework_scan
+    # Run both frameworks
+    result_act = run_framework_scan(data, framework="dpdp")
+    result_rules = run_framework_scan(data, framework="dpdp_rules_2025")
+    return {
+        "status": "ok",
+        "framework": "DPDP_FULL",
+        "dpdp_act_2023": result_act,
+        "dpdp_rules_2025": result_rules,
+    }

@@ -715,7 +715,7 @@ def check_scan_threshold(username: str, scan_type: str):
             return {"status": "ok", "message": "listnamespace allowed (unlimited)"}
 
         ONE_FREE_SCAN_TYPES = ["basic", "azure_basic", "gcp_basic"]
-        threshold = 100 if scan_type.lower() in ONE_FREE_SCAN_TYPES else 0
+        threshold = 100 if scan_type.lower() in ONE_FREE_SCAN_TYPES else 50
 
         field_to_check = scan_type_mapping.get(scan_type.lower())
         if not field_to_check:

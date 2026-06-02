@@ -78,26 +78,14 @@ def get_VPC_flow_log_findings(data: AccessTokenModel):
             all_findings = []
             for region in REGIONS:
 
-                # Get dataframe from CloudWatch logs
-                cw_client = boto3.client(
-                    "logs",
-                    aws_access_key_id=credentials["AccessKeyId"],
-                    aws_secret_access_key=credentials["SecretAccessKey"],
-                    aws_session_token=credentials["SessionToken"],
-                    region_name=region,
+                # Determine the source type and get the dataframe
+                df = _get_flow_log_dataframe(
+                    data=data,
+                    credentials=credentials,
+                    account_id=account_id,
+                    region=region,
                 )
-                print(data.vpcFlowLogNames.get(account_id, {}))
-                log_group_name = (
-                    data.vpcFlowLogNames.get(account_id, {}).get(region)
-                    if data.vpcFlowLogNames
-                    else None
-                )
-                if not log_group_name:
-                    print(f"No log group selected for {account_id} in {region}")
-                    failed_regions.append(region)
-                    continue
 
-                df = getDataframe(cw_client=cw_client, log_group_name=log_group_name)
                 if isinstance(df, dict) and df.get("status") == "error":
                     print(f"Error: ", df.get("error_message"))
                     if failed_region_error_message == "":
@@ -234,3 +222,104 @@ def get_VPC_flow_log_findings(data: AccessTokenModel):
     except Exception as e:
         print(f"Error: {str(e)}")
         return {"status": "error", "error_message": str(e)}
+
+
+def _get_flow_log_dataframe(data, credentials, account_id, region):
+    """
+    Determine the flow log source type and fetch the dataframe accordingly.
+    Supports: cloud-watch-logs, s3, kinesis-data-firehose.
+
+    Uses vpcFlowLogSources (new) if available, falls back to vpcFlowLogNames (legacy).
+    """
+    access_key = credentials["AccessKeyId"]
+    secret_key = credentials["SecretAccessKey"]
+    session_token = credentials["SessionToken"]
+
+    # New path: vpcFlowLogSources contains full destination info
+    if data.vpcFlowLogSources:
+        source = data.vpcFlowLogSources.get(account_id, {}).get(region)
+        if not source:
+            print(f"No flow log source selected for {account_id} in {region}")
+            return {"status": "error", "error_message": f"No flow log source selected for {account_id} in {region}"}
+
+        destination_type = source.destinationType
+
+        if destination_type == "cloud-watch-logs":
+            cw_client = boto3.client(
+                "logs",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
+                region_name=region,
+            )
+            return getDataframe(
+                cw_client=cw_client,
+                log_group_name=source.logGroupName,
+                destination_type="cloud-watch-logs",
+            )
+
+        elif destination_type == "s3":
+            s3_client = boto3.client(
+                "s3",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
+                region_name=region,
+            )
+            return getDataframe(
+                s3_client=s3_client,
+                bucket=source.s3Bucket,
+                prefix=source.s3Prefix or "",
+                account_id=account_id,
+                region=region,
+                destination_type="s3",
+            )
+
+        elif destination_type == "kinesis-data-firehose":
+            firehose_client = boto3.client(
+                "firehose",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
+                region_name=region,
+            )
+            s3_client = boto3.client(
+                "s3",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                aws_session_token=session_token,
+                region_name=region,
+            )
+            return getDataframe(
+                firehose_client=firehose_client,
+                s3_client=s3_client,
+                firehose_arn=source.firehoseArn,
+                region=region,
+                destination_type="kinesis-data-firehose",
+            )
+
+        else:
+            return {"status": "error", "error_message": f"Unsupported destination type: {destination_type}"}
+
+    # Legacy path: vpcFlowLogNames (CloudWatch only)
+    elif data.vpcFlowLogNames:
+        log_group_name = data.vpcFlowLogNames.get(account_id, {}).get(region)
+        if not log_group_name:
+            print(f"No log group selected for {account_id} in {region}")
+            return {"status": "error", "error_message": f"No log group selected for {account_id} in {region}"}
+
+        cw_client = boto3.client(
+            "logs",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            aws_session_token=session_token,
+            region_name=region,
+        )
+        return getDataframe(
+            cw_client=cw_client,
+            log_group_name=log_group_name,
+            destination_type="cloud-watch-logs",
+        )
+
+    else:
+        return {"status": "error", "error_message": f"No flow log source configured for {account_id} in {region}"}

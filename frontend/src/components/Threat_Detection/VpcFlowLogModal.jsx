@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
-import { Modal, Button, Select, Spin, Tooltip } from "antd";
+import { Modal, Button, Select, Spin, Tooltip, Tag } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import Cookies from "js-cookie";
 import { notifyError, notifyInfo, notifySuccess } from "../Notification";
 import Spinner from "../UI/Spinner";
 import { useNavigate } from "react-router-dom";
+
+// Destination type display config
+const DESTINATION_CONFIG = {
+  "cloud-watch-logs": { label: "CloudWatch", color: "blue" },
+  s3: { label: "S3", color: "green" },
+  "kinesis-data-firehose": { label: "Firehose", color: "orange" },
+};
 
 const VpcFlowLogModal = ({
   open,
@@ -21,15 +28,32 @@ const VpcFlowLogModal = ({
   selectedRegions,
   optionsMap,
   setOptionsMap,
+  // New props for multi-source support
+  vpcFlowLogSources,
+  setVpcFlowLogSources,
 }) => {
-  // Map shape: { [accountId]: { [region]: string[] } }
-  // const [optionsMap, setOptionsMap] = useState({});
   // Loading state per pair key "accountId|region"
   const [loadingPairs, setLoadingPairs] = useState({});
 
   const navigate = useNavigate();
 
   const getKey = (accountId, region) => `${accountId}|${region}`;
+
+  const getDisplayName = (flowLog) => {
+    const type = flowLog.destinationType || "cloud-watch-logs";
+    if (type === "cloud-watch-logs") {
+      return flowLog.logGroupName || flowLog.flowLogId;
+    } else if (type === "s3") {
+      return flowLog.s3Destination || `s3://${flowLog.s3Bucket}/${flowLog.s3Prefix || ""}`;
+    } else if (type === "kinesis-data-firehose") {
+      // Show just the stream name from the ARN
+      const arn = flowLog.firehoseArn || "";
+      const streamName = arn.split("/").pop() || arn;
+      return streamName || flowLog.flowLogId;
+    }
+    return flowLog.flowLogId;
+  };
+
   const fetchVpcFlowLogs = async (pairs) => {
     const isOpen = typeof open === "boolean" ? open : !!showVpcLogModal;
     if (!isOpen) return;
@@ -78,10 +102,9 @@ const VpcFlowLogModal = ({
         Object.entries(data).forEach(([accountId, regionsMap]) => {
           nextOptionsMap[accountId] = {};
           Object.entries(regionsMap).forEach(([region, flowLogs]) => {
+            // Store full flow log objects (all destination types)
             nextOptionsMap[accountId][region] = Array.isArray(flowLogs)
               ? flowLogs
-                .filter((fl) => fl.logGroupName)
-                .map((fl) => fl.logGroupName)
               : [];
           });
         });
@@ -116,6 +139,7 @@ const VpcFlowLogModal = ({
       });
     }
   };
+
   useEffect(() => {
     const isOpen = typeof open === "boolean" ? open : !!showVpcLogModal;
     if (!isOpen) return;
@@ -150,6 +174,54 @@ const VpcFlowLogModal = ({
     await fetchVpcFlowLogs([{ account_id: accountId, region }]);
   };
 
+  const handleSelection = (selectedFlowLogId, accountId, region) => {
+    // Find the full flow log object from optionsMap
+    const flowLogs = optionsMap?.[accountId]?.[region] || [];
+    const selectedFlowLog = flowLogs.find(
+      (fl) => fl.flowLogId === selectedFlowLogId
+    );
+
+    if (!selectedFlowLog) return;
+
+    // Update legacy vpcFlowLogNames for backward compatibility (CloudWatch only)
+    if (selectedFlowLog.destinationType === "cloud-watch-logs") {
+      setVpcFlowLogNames((prev) => ({
+        ...prev,
+        [accountId]: {
+          ...(prev[accountId] || {}),
+          [region]: selectedFlowLog.logGroupName,
+        },
+      }));
+    } else {
+      // Clear legacy field for non-CloudWatch sources
+      setVpcFlowLogNames((prev) => ({
+        ...prev,
+        [accountId]: {
+          ...(prev[accountId] || {}),
+          [region]: selectedFlowLogId, // Use flowLogId as identifier
+        },
+      }));
+    }
+
+    // Update new vpcFlowLogSources with full destination info
+    if (setVpcFlowLogSources) {
+      setVpcFlowLogSources((prev) => ({
+        ...prev,
+        [accountId]: {
+          ...(prev?.[accountId] || {}),
+          [region]: {
+            flowLogId: selectedFlowLog.flowLogId,
+            destinationType: selectedFlowLog.destinationType || "cloud-watch-logs",
+            logGroupName: selectedFlowLog.logGroupName || null,
+            s3Bucket: selectedFlowLog.s3Bucket || null,
+            s3Prefix: selectedFlowLog.s3Prefix || null,
+            firehoseArn: selectedFlowLog.firehoseArn || null,
+          },
+        },
+      }));
+    }
+  };
+
   return (
     <div>
       <Modal
@@ -158,7 +230,7 @@ const VpcFlowLogModal = ({
         closable={false}
         title={
           <div className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Select CloudWatch VPC Flow Log Groups
+            Select VPC Flow Log Source
           </div>
         }
         footer={[
@@ -202,13 +274,39 @@ const VpcFlowLogModal = ({
 
             return selectedRegions.map((region) => {
               const key = getKey(accountId, region);
-              const options =
-                optionsMap?.[accountId]?.[region]?.map((name) => ({
-                  label: name,
-                  value: name,
-                })) || [];
+              const flowLogs = optionsMap?.[accountId]?.[region] || [];
 
-              const value = vpcFlowLogNames?.[accountId]?.[region] || undefined;
+              // Build options with destination type tags
+              const options = flowLogs.map((fl) => {
+                const destType = fl.destinationType || "cloud-watch-logs";
+                const config = DESTINATION_CONFIG[destType] || {
+                  label: destType,
+                  color: "default",
+                };
+                const displayName = getDisplayName(fl);
+
+                return {
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <Tag
+                        color={config.color}
+                        className="text-xs"
+                        style={{ marginRight: 0 }}
+                      >
+                        {config.label}
+                      </Tag>
+                      <span className="truncate">{displayName}</span>
+                    </span>
+                  ),
+                  value: fl.flowLogId,
+                  searchText: `${config.label} ${displayName} ${fl.flowLogId}`,
+                };
+              });
+
+              // Get current selected value
+              const selectedSource =
+                vpcFlowLogSources?.[accountId]?.[region];
+              const value = selectedSource?.flowLogId || undefined;
 
               const isLoading = !!loadingPairs[key];
 
@@ -224,24 +322,18 @@ const VpcFlowLogModal = ({
                   <div className="flex items-center gap-3">
                     <Select
                       showSearch
-                      placeholder="Select VPC Flow Log group"
-                      optionFilterProp="label"
+                      placeholder="Select VPC Flow Log source"
+                      optionFilterProp="searchText"
                       filterOption={(input, option) =>
-                        (option?.label || "")
+                        (option?.searchText || "")
                           .toLowerCase()
                           .includes(input.toLowerCase())
                       }
                       options={options}
                       value={value}
-                      onChange={(selected) => {
-                        setVpcFlowLogNames((prev) => ({
-                          ...prev,
-                          [accountId]: {
-                            ...(prev[accountId] || {}),
-                            [region]: selected,
-                          },
-                        }));
-                      }}
+                      onChange={(selected) =>
+                        handleSelection(selected, accountId, region)
+                      }
                       style={{ width: "100%" }}
                       disabled={isLoading}
                       notFoundContent={
