@@ -66,6 +66,11 @@ const ComplianceDashboard = ({
   const [scanning, setScanning] = useState(false);
   const hasScanEndpoint = !!SCAN_ENDPOINTS[frameworkKey];
 
+  // ── Scan progress ───────────────────────────────────────────────────────────
+  const [scanProgress, setScanProgress] = useState({ percent: 0, message: "" });
+  const [scanComplete, setScanComplete] = useState(false);
+  const wsRef = { current: null };
+
   // ── Data state ──────────────────────────────────────────────────────────────
   const [allFindings, setAllFindings] = useState([]);
   const [cloudStatuses, setCloudStatuses] = useState({});
@@ -76,6 +81,7 @@ const ComplianceDashboard = ({
   // ── Drawer ──────────────────────────────────────────────────────────────────
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [cardFilter, setCardFilter] = useState("failed");
   const [hiddenFindings, setHiddenFindings] = useState(() => {
     const saved = localStorage.getItem(`hidden_compliance_${frameworkKey}`);
     return saved ? JSON.parse(saved) : [];
@@ -105,6 +111,24 @@ const ComplianceDashboard = ({
       JSON.stringify(hiddenFindings)
     );
   }, [hiddenFindings, frameworkKey]);
+
+  // ── Reset state when switching frameworks ───────────────────────────────────
+  useEffect(() => {
+    setAllFindings([]);
+    setCloudStatuses({});
+    setIsReportAvailable(false);
+    setIsSampleReport(false);
+    setAwsAccount(undefined);
+    setAzureAccount(undefined);
+    setGcpAccount(undefined);
+    setScanComplete(false);
+    setScanProgress({ percent: 0, message: "" });
+    setCardFilter("failed");
+    setHiddenFindings(() => {
+      const saved = localStorage.getItem(`hidden_compliance_${frameworkKey}`);
+      return saved ? JSON.parse(saved) : [];
+    });
+  }, [frameworkKey]);
 
   // ── Fetch report for a single cloud ─────────────────────────────────────────
   const fetchCloudReport = async (cloud, accountId, isSample = false) => {
@@ -215,53 +239,76 @@ const ComplianceDashboard = ({
     }
 
     setScanning(true);
-    const scanEndpoint = SCAN_ENDPOINTS[frameworkKey];
-    const scanPromises = [];
+    setScanComplete(false);
+    setScanProgress({ percent: 0, message: "Connecting..." });
 
-    // AWS scan
-    if (parsedAwsAccounts.length > 0) {
-      scanPromises.push(
-        fetch(`${backendUrl}${scanEndpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accounts: parsedAwsAccounts, regions: scanRegions, username }),
-        }).then((r) => r.json()).then((r) => ({ cloud: "AWS", ...r })).catch((e) => ({ cloud: "AWS", status: "error", error_message: e.message }))
-      );
-    }
+    // Use WebSocket for real-time progress
+    const wsProtocol = backendUrl.startsWith("https") ? "wss" : "ws";
+    const wsHost = backendUrl.replace(/^https?:\/\//, "");
+    const wsUrl = `${wsProtocol}://${wsHost}/ws/scan/${frameworkKey}`;
 
-    // Azure scan
-    if (parsedAzureAccounts.length > 0) {
-      scanPromises.push(
-        fetch(`${backendUrl}${scanEndpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accounts: parsedAzureAccounts, regions: ["global"], username, cloud: "azure" }),
-        }).then((r) => r.json()).then((r) => ({ cloud: "Azure", ...r })).catch((e) => ({ cloud: "Azure", status: "error", error_message: e.message }))
-      );
-    }
+    const scanPayload = {
+      accounts: parsedAwsAccounts,
+      regions: scanRegions,
+      username,
+    };
 
-    // GCP scan
-    if (parsedGcpAccounts.length > 0) {
-      scanPromises.push(
-        fetch(`${backendUrl}${scanEndpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accounts: parsedGcpAccounts, regions: ["global"], username, cloud: "gcp" }),
-        }).then((r) => r.json()).then((r) => ({ cloud: "GCP", ...r })).catch((e) => ({ cloud: "GCP", status: "error", error_message: e.message }))
-      );
-    }
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+    let scanResult = null;
+
+    const wsPromise = new Promise((resolve, reject) => {
+      ws.onopen = () => {
+        ws.send(JSON.stringify(scanPayload));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setScanProgress({ percent: data.percent || 0, message: data.message || "" });
+          if (data.status === "complete" || data.status === "error") {
+            scanResult = data.result || data;
+            resolve(data);
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      };
+
+      ws.onerror = (err) => {
+        reject(new Error("WebSocket connection failed"));
+      };
+
+      ws.onclose = () => {
+        // Only reject if we never got a result
+        setTimeout(() => {
+          if (!scanResult) {
+            reject(new Error("Connection closed unexpectedly"));
+          }
+        }, 1000);
+      };
+
+      // Timeout after 15 minutes
+      setTimeout(() => {
+        if (!scanResult) reject(new Error("Scan timed out after 15 minutes"));
+      }, 900000);
+    });
 
     try {
-      const results = await Promise.all(scanPromises);
-      for (const result of results) {
-        if (result?.status === "ok") {
-          result.notifications?.success?.forEach((msg) => notifySuccess(`${result.cloud}: ${msg}`));
-          result.notifications?.error?.forEach((msg) => notifyError(`${result.cloud}: ${msg}`));
-        } else {
-          notifyError(`${result.cloud}: ${result?.error_message || "Scan failed"}`);
-          if (result?.fail_type === "contact_us") notifyRedirectToContact(navigate, 5);
+      const wsResult = await wsPromise;
+
+      if (wsResult?.status === "error") {
+        notifyError(`AWS: ${wsResult?.message || wsResult?.result?.error_message || "Scan failed"}`);
+      } else {
+        const result = scanResult || wsResult?.result;
+        if (result?.notifications) {
+          result.notifications.success?.forEach((msg) => notifySuccess(`AWS: ${msg}`));
+          result.notifications.error?.forEach((msg) => notifyError(`AWS: ${msg}`));
+        } else if (result?.status === "ok") {
+          notifySuccess("AWS: Scan completed successfully");
         }
       }
+
       setScanAccounts([]);
       setScanAzureAccounts([]);
       setScanGcpAccounts([]);
@@ -269,12 +316,38 @@ const ComplianceDashboard = ({
     } catch (err) {
       notifyError("Scan failed: " + err.message);
     } finally {
+      try { ws.close(); } catch (e) { /* ignore */ }
+      wsRef.current = null;
       setScanning(false);
+      setScanComplete(true);
+      setScanProgress({ percent: 100, message: "Scan complete!" });
     }
   };
 
+  const handleCancelScan = () => {
+    if (wsRef.current) {
+      try { wsRef.current.close(); } catch (e) { /* ignore */ }
+      wsRef.current = null;
+    }
+    setScanning(false);
+    setScanProgress({ percent: 0, message: "" });
+    setScanComplete(false);
+    notifyInfo("Scan cancelled");
+  };
+
+  const handleViewLatestReport = () => {
+    setScanComplete(false);
+    loadReports(false);
+  };
+
   // ── Derived data ────────────────────────────────────────────────────────────
-  const filteredFindings = sortBySeverity(filterByCloud(allFindings, selectedCloud));
+  const allCloudFindings = sortBySeverity(filterByCloud(allFindings, selectedCloud));
+  const filteredFindings = allCloudFindings.filter((f) => {
+    if (cardFilter === "passed") return f.affected === 0;
+    if (cardFilter === "failed") return f.affected > 0;
+    if (cardFilter === "critical") return f.affected > 0 && f.severity === "Critical";
+    return true; // "all"
+  });
 
   const tableData = filteredFindings.map((f, i) => ({
     key: `${f.id}-${f.cloud}-${f.region}-${i}`,
@@ -292,7 +365,13 @@ const ComplianceDashboard = ({
     fullData: f.fullData,
   }));
 
-  const dashboardMeta = computeDashboardMeta(tableData);
+  const dashboardMeta = computeDashboardMeta(
+    allCloudFindings.map((f) => ({
+      total_scanned: f.total_scanned,
+      affected: f.affected,
+      severity_level: f.severity,
+    }))
+  );
 
   const errorClouds = Object.entries(cloudStatuses)
     .filter(([, s]) => s.status === "error")
@@ -405,15 +484,40 @@ const ComplianceDashboard = ({
 
             {scanning && (
               <div className="mt-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg rounded-2xl shadow-xl shadow-indigo-500/10 border border-indigo-100 dark:border-slate-700 p-12 text-center">
-                <Spinner />
-                <p className="text-lg font-medium text-slate-700 dark:text-slate-300 mt-4">
-                  Running {config.label} scan...
-                </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  This might take a few minutes depending on the number of resources.
-                </p>
+                <div className="max-w-md mx-auto">
+                  <p className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                    Running {config.label} scan...
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 font-mono">
+                    {scanProgress.message || "Initializing..."}
+                  </p>
+                  {/* Progress bar */}
+                  <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-3 rounded-full transition-all duration-500 ease-out"
+                      style={{
+                        width: `${scanProgress.percent}%`,
+                        background: scanProgress.percent >= 96
+                          ? "linear-gradient(90deg, #10b981, #34d399)"
+                          : "linear-gradient(90deg, #6366f1, #818cf8)",
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-mono">
+                    {scanProgress.percent}%
+                  </p>
+                  <Button
+                    onClick={handleCancelScan}
+                    className="mt-4"
+                    danger
+                    size="small"
+                  >
+                    Cancel Scan
+                  </Button>
+                </div>
               </div>
             )}
+
 
             {/* ── View Reports Section ──────────────────────────────────────── */}
             {!scanning && (
@@ -570,11 +674,34 @@ const ComplianceDashboard = ({
             <div className="mt-6">
               {isSampleReport && <GetSampleReportNote />}
               <ScanCharts meta={dashboardMeta} />
-              <SummaryCards meta={dashboardMeta} />
+              <SummaryCards meta={dashboardMeta} onCardClick={(filter) => {
+                if (filter === "passed") setCardFilter("passed");
+                else if (filter === "failed") setCardFilter("failed");
+                else if (filter === "critical") setCardFilter("critical");
+                else setCardFilter("all");
+                document.getElementById("findings-table")?.scrollIntoView({ behavior: "smooth" });
+              }} />
+              <div id="findings-table">
               <FindingsTable
                 tableData={tableData}
                 frameworkKey={frameworkKey}
                 showCloudColumn={true}
+                allFindings={allCloudFindings.map((f, i) => ({
+                  key: `${f.id}-${f.cloud}-${f.region}-${i}`,
+                  id: f.id,
+                  control_id: f.id,
+                  cloud: f.cloud,
+                  source: f.source,
+                  check_name: f.check_name,
+                  service: f.service,
+                  severity_level: f.severity,
+                  severity_score: f.severity_score,
+                  affected: f.affected,
+                  total_scanned: f.total_scanned,
+                  region: f.region,
+                  description: f.description,
+                  fullData: f.fullData,
+                }))}
                 onRowClick={(record) => {
                   setSelectedFinding(record);
                   setDrawerVisible(true);
@@ -582,6 +709,7 @@ const ComplianceDashboard = ({
                 hiddenFindings={hiddenFindings}
                 onHideFinding={handleHideFinding}
               />
+              </div>
               <FindingDrawer
                 open={drawerVisible}
                 onClose={() => setDrawerVisible(false)}

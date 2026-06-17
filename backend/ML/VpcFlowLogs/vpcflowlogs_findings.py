@@ -167,7 +167,8 @@ def get_VPC_flow_log_findings(data: AccessTokenModel):
                     data=json.dumps({"query": sampled_findings, "logs_type": "vpc"}),
                 )
                 result = response.json()
-                output_findings = result.get("findingsData", {}).get("findings", [])
+                findings_data = result.get("findingsData", [])
+                output_findings = findings_data if isinstance(findings_data, list) else findings_data.get("findings", [])
                 all_findings.extend(output_findings)
 
             if len(failed_regions) > 0:

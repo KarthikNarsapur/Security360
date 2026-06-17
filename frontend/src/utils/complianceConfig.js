@@ -198,7 +198,7 @@ export const COMPLIANCE_FRAMEWORKS = {
   dpdp: {
     key: "dpdp",
     label: "DPDP Act",
-    fullName: "Digital Personal Data Protection Act, 2023",
+    fullName: "Digital Personal Data Protection Act",
     description: "India's data protection law for personal data",
     icon: "🇮🇳",
     gradient: "from-orange-500 to-green-600",
@@ -223,13 +223,13 @@ export const COMPLIANCE_FRAMEWORKS = {
     key: "sebi",
     label: "SEBI CSCRF",
     fullName: "SEBI Cyber Security & Cyber Resilience Framework",
-    description: "SEBI cybersecurity guidelines for market entities",
+    description: "SEBI CSCRF 2024 — 128 checks across Governance, Protect, Detect, Respond, Recover & Data Localization",
     icon: "📈",
     gradient: "from-violet-600 to-indigo-600",
     reportType: "sebi",
-    simpleExplanation: "Cybersecurity framework mandated by the Securities and Exchange Board of India for stock exchanges, brokers, and market infrastructure institutions. It ensures capital market entities have robust security controls and can recover quickly from cyber incidents.",
-    whoNeedsIt: "Stock exchanges, depositories, brokers, and SEBI-regulated entities",
-    keyFocus: "Real-time threat detection, SOC operations, vulnerability management, cyber resilience",
+    simpleExplanation: "Cybersecurity and Cyber Resilience Framework mandated by SEBI (Circular SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113) for all regulated entities. Covers 6 cybersecurity functions — Governance, Identify, Protect, Detect, Respond, Recover — plus India data localization requirements and enhanced assessments including Ransomware Readiness and Cyber Resilience Scoring.",
+    whoNeedsIt: "Stock exchanges, depositories, brokers, mutual funds, portfolio managers, and all SEBI-regulated entities",
+    keyFocus: "IAM & access control, data encryption, network segmentation, SOC monitoring, backup & DR, India data residency, cyber resilience scoring",
   },
 
   // ─── Healthcare-Specific Frameworks ───────────────────────────────────────

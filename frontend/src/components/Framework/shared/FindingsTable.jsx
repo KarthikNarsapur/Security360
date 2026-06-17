@@ -12,8 +12,199 @@ import {
   getFilterOptions,
 } from "../../../utils/frameworkUtils";
 import { useState } from "react";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 const SEVERITY_SORT_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+
+// ── Excel Export with Summary + Findings sheets ───────────────────────────────
+const exportToExcel = async (data, allFindings, frameworkKey) => {
+  const workbook = new ExcelJS.Workbook();
+
+  // Calculate stats from ALL findings (including passed)
+  const totalChecks = allFindings.length;
+  const failedChecks = allFindings.filter((f) => f.affected > 0).length;
+  const passedChecks = totalChecks - failedChecks;
+  const totalScanned = allFindings.reduce((s, f) => s + (f.total_scanned || 0), 0);
+  const totalAffected = allFindings.reduce((s, f) => s + (f.affected || 0), 0);
+  const complianceScore = totalScanned > 0 ? Math.round(((totalScanned - totalAffected) / totalScanned) * 100) : 0;
+  const rating = complianceScore >= 90 ? "Compliant" : complianceScore >= 75 ? "Partially Compliant" : complianceScore >= 50 ? "Needs Improvement" : "Non-Compliant";
+
+  const severityCounts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  allFindings.filter((f) => f.affected > 0).forEach((f) => {
+    if (severityCounts.hasOwnProperty(f.severity_level)) severityCounts[f.severity_level]++;
+  });
+
+  // ── Sheet 1: Summary ────────────────────────────────────────────────────────
+  const summary = workbook.addWorksheet("Summary");
+  summary.columns = [{ width: 30 }, { width: 25 }];
+
+  const addSummaryRow = (label, value, bold = false) => {
+    const row = summary.addRow([label, value]);
+    row.getCell(1).font = { bold: true, size: 11 };
+    row.getCell(2).font = { bold, size: 11 };
+    row.getCell(1).border = { bottom: { style: "thin", color: { argb: "FFD0D0D0" } } };
+    row.getCell(2).border = { bottom: { style: "thin", color: { argb: "FFD0D0D0" } } };
+  };
+
+  const titleRow = summary.addRow([`${frameworkKey.toUpperCase()} Compliance Report`]);
+  titleRow.getCell(1).font = { bold: true, size: 16 };
+  summary.addRow([]);
+
+  addSummaryRow("Report Generated", new Date().toLocaleString());
+  addSummaryRow("Framework", frameworkKey.toUpperCase());
+  summary.addRow([]);
+
+  const scoreRow = summary.addRow(["Compliance Score", `${complianceScore}%`]);
+  scoreRow.getCell(1).font = { bold: true, size: 13 };
+  scoreRow.getCell(2).font = { bold: true, size: 13, color: { argb: complianceScore >= 75 ? "FF10B981" : "FFEF4444" } };
+
+  addSummaryRow("Compliance Rating", rating, true);
+  summary.addRow([]);
+
+  addSummaryRow("Total Checks Executed", totalChecks);
+  addSummaryRow("Checks Passed", passedChecks);
+  addSummaryRow("Checks Failed", failedChecks);
+  addSummaryRow("Total Resources Scanned", totalScanned);
+  addSummaryRow("Total Resources Affected", totalAffected);
+  summary.addRow([]);
+
+  addSummaryRow("Critical Findings", severityCounts.Critical);
+  addSummaryRow("High Findings", severityCounts.High);
+  addSummaryRow("Medium Findings", severityCounts.Medium);
+  addSummaryRow("Low Findings", severityCounts.Low);
+
+  // ── Sheet 2: Findings ───────────────────────────────────────────────────────
+  const findings = workbook.addWorksheet("Findings");
+  const headers = ["Key", "ID", "Cloud", "Source", "Check Name", "Description", "Service", "Severity Level", "Severity Score", "Affected", "Total Scanned", "Failed Checks", "Region", "Result"];
+  const headerRow = findings.addRow(headers);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4338CA" } };
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+    cell.border = { bottom: { style: "thin" } };
+  });
+
+  findings.columns = [
+    { width: 10 }, { width: 22 }, { width: 8 }, { width: 12 }, { width: 40 }, { width: 55 },
+    { width: 15 }, { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 16 }, { width: 14 }, { width: 10 },
+  ];
+
+  // Include ALL findings (passed + failed) in the Excel
+  allFindings.forEach((row, idx) => {
+    const result = row.affected > 0 ? "FAIL" : "PASS";
+    const description = row.fullData?.problem_statement || row.fullData?.description || row.description || "";
+    const r = findings.addRow([
+      idx + 1,
+      row.id || row.control_id || "",
+      row.cloud || "aws",
+      row.source || row.fullData?.service || "",
+      row.check_name || "",
+      description,
+      row.service || "",
+      row.severity_level || row.severity || "",
+      row.severity_score || 0,
+      row.affected || 0,
+      row.total_scanned || 0,
+      `${row.affected || 0} out of ${row.total_scanned || 0}`,
+      row.region || "global",
+      result,
+    ]);
+    // Color the result cell
+    const resultCell = r.getCell(14);
+    resultCell.font = { bold: true, color: { argb: result === "PASS" ? "FF10B981" : "FFEF4444" } };
+    // Severity color
+    const sevCell = r.getCell(8);
+    const sevColors = { Critical: "FFDC2626", High: "FFEA580C", Medium: "FFD97706", Low: "FF2563EB" };
+    const sev = row.severity_level || row.severity || "";
+    if (sevColors[sev]) sevCell.font = { bold: true, color: { argb: sevColors[sev] } };
+  });
+
+  // ── Sheet 3: Failed Resources & Remediation ─────────────────────────────────
+  const remediation = workbook.addWorksheet("Remediation");
+  const remHeaders = ["Sl No", "Resource Name", "Service", "Result", "Reason (Why Failed)", "Recommendations/Remediation"];
+  const remHeaderRow = remediation.addRow(remHeaders);
+  remHeaderRow.eachCell((cell) => {
+    cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDC2626" } };
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+    cell.border = { bottom: { style: "thin" } };
+  });
+  remediation.columns = [{ width: 8 }, { width: 35 }, { width: 15 }, { width: 10 }, { width: 60 }, { width: 60 }];
+
+  // Build failed resources list sorted by service
+  const failedResources = [];
+  allFindings.filter((row) => row.affected > 0)
+    .sort((a, b) => (a.service || "").localeCompare(b.service || ""))
+    .forEach((row) => {
+      const resources = row.fullData?.resources_affected || [];
+      const reason = row.fullData?.problem_statement || row.description || "";
+      const service = row.service || "";
+      if (resources.length > 0) {
+        resources.forEach((res) => {
+          failedResources.push({
+            resource_name: res.resource_name || res.resource_id || res.arn || row.check_name || "",
+            service,
+            reason: res.note || res.issues?.join("; ") || reason,
+          });
+        });
+      } else {
+        failedResources.push({ resource_name: row.check_name || row.id || "", service, reason });
+      }
+    });
+
+  // Call Bedrock for AI-generated remediation (batch 20 at a time)
+  let aiRemediations = [];
+  try {
+    const backendUrl = process.env.REACT_APP_BACKEND_URL;
+    const batchSize = 20;
+    for (let i = 0; i < failedResources.length; i += batchSize) {
+      const batch = failedResources.slice(i, i + batchSize).map((r) => ({
+        resource_name: r.resource_name,
+        service: r.service,
+        reason: r.reason?.substring(0, 100),
+      }));
+      const resp = await fetch(`${backendUrl}/api/generate-remediation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ findings: batch }),
+      });
+      const result = await resp.json();
+      if (result?.status === "ok" && result.remediations?.length) {
+        // Parse each item - could be string or {remediation: "..."} object
+        const parsed = result.remediations.map((r) => {
+          if (typeof r === "string") {
+            try { const obj = JSON.parse(r); return obj.remediation || obj.Remediation || r; } catch { return r; }
+          }
+          if (typeof r === "object") return r.remediation || r.Remediation || JSON.stringify(r);
+          return String(r);
+        });
+        aiRemediations.push(...parsed);
+      } else {
+        aiRemediations.push(...batch.map(() => ""));
+      }
+    }
+  } catch (e) {
+    console.error("AI remediation fetch failed:", e);
+  }
+
+  failedResources.forEach((res, idx) => {
+    const aiRec = aiRemediations[idx] || "";
+    const r = remediation.addRow([
+      idx + 1,
+      res.resource_name,
+      res.service,
+      "FAIL",
+      res.reason,
+      aiRec,
+    ]);
+    r.getCell(4).font = { bold: true, color: { argb: "FFEF4444" } };
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), `${frameworkKey}-compliance-report.xlsx`);
+  notifySuccess("Exported to Excel!");
+};
 
 const CLOUD_BADGE_STYLES = {
   aws: "bg-orange-100 text-orange-700 border-orange-200",
@@ -57,6 +248,7 @@ const FindingsTable = ({
   onHideFinding,
   showHideAction = true,
   showCloudColumn = false,
+  allFindings = [],
 }) => {
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedSeverities, setSelectedSeverities] = useState([]);
@@ -91,8 +283,7 @@ const FindingsTable = ({
   };
 
   const handleExportCSV = () => {
-    downloadCSV(filteredData, `${frameworkKey}-findings.csv`);
-    notifySuccess("Exported to CSV!");
+    exportToExcel(filteredData, allFindings.length > 0 ? allFindings : filteredData, frameworkKey);
   };
 
   const activeFilters = [
