@@ -40,3 +40,5 @@ backend/backend.log
 
 awscliv2.zip
 aws/
+
+lambda/

@@ -1140,3 +1140,52 @@ def dpdp_r5_s3_intelligent_tiering(session, meta):
         50, "Low", non_compliant,
         "Ensure personal data subject to access requests is not archived in Glacier/Deep Archive "
         "without a retrieval plan. Document SLA for fulfilling Data Principal requests.", total)
+
+
+def dpdp_r5_api_gateway_auth(session, meta):
+    """Rule 5 — API Gateway must have authorization to protect data principal endpoints."""
+    apigw = session.client("apigateway")
+    non_compliant = []
+    total = 0
+    try:
+        apis = apigw.get_rest_apis().get("items", [])
+        total = len(apis)
+        for api in apis:
+            try:
+                resources = apigw.get_resources(restApiId=api["id"]).get("items", [])
+                for resource in resources:
+                    methods = resource.get("resourceMethods", {})
+                    for method_name in methods:
+                        if method_name == "OPTIONS":
+                            continue
+                        try:
+                            method = apigw.get_method(
+                                restApiId=api["id"],
+                                resourceId=resource["id"],
+                                httpMethod=method_name
+                            )
+                            auth_type = method.get("authorizationType", "NONE")
+                            if auth_type == "NONE":
+                                non_compliant.append({
+                                    "resource_name": f"{api['name']}{resource.get('path', '')}",
+                                    "method": method_name,
+                                    "note": "No authorization — endpoint publicly accessible"
+                                })
+                                break  # One finding per API is enough
+                        except Exception:
+                            pass
+                    else:
+                        continue
+                    break  # Found an issue in this API, move to next
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"dpdp_r5_api_gateway_auth error: {e}")
+    _update_meta(meta, "APIGateway", total, non_compliant, "High")
+    return _result(
+        "DPDP R2025 — API Gateway Authorization Check", "APIGateway", "DPDP-R5-RIGHTS-02",
+        "Rule 5 requires controlled access to personal data. API Gateway endpoints without "
+        "authorization allow unauthenticated access to data principal operations.",
+        80, "High", non_compliant,
+        "Add authorization (IAM, Cognito, or Lambda authorizer) to all API Gateway methods "
+        "that access or modify personal data.", total)

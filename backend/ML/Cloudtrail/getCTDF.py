@@ -12,9 +12,12 @@ def getCTLogsDF(ct_client):
     #     events = json.load(f)
 
     data = get_cloud_trail_logs(ct_client)
-    if data.get("status") == "error":
+    if isinstance(data, dict) and data.get("status") == "error":
         return data
     all_events = data.get("all_events", [])
+
+    if not all_events:
+        return {"status": "error", "error_message": "No log data returned from source."}
 
     parsed_events = []
 

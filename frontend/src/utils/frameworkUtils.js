@@ -269,7 +269,7 @@ export const FRAMEWORK_CONFIG = {
   sebi: {
     label: "SEBI CSCRF",
     fullName: "SEBI Cyber Security & Cyber Resilience Framework",
-    description: "SEBI CSCRF 2024 — for Banks, NBFCs & regulated entities",
+    description: "SEBI CSCRF 2024 — 128 compliance checks for regulated entities",
     gradient: "from-violet-600 to-indigo-600",
     apiEndpoint: "/api/sebi-scan",
     reportType: "sebi",
@@ -400,7 +400,7 @@ export const FRAMEWORK_CONFIG = {
   },
   dpdp: {
     label: "DPDP Act",
-    fullName: "Digital Personal Data Protection Act, 2023",
+    fullName: "Digital Personal Data Protection Act",
     description: "India's data protection law for personal data",
     gradient: "from-orange-500 to-green-600",
     apiEndpoint: "/api/compliance-report",
