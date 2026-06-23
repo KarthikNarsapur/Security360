@@ -1,8 +1,8 @@
 import { COMPLIANCE_FRAMEWORKS } from "../../utils/complianceConfig";
 
 const SIDEBAR_KEYS = [
-  "gdpr", "pcidss", "hipaa", "soc2", "fedramp", "wafr", "cis", "nist",
-  "dpdp", "rbi", "sebi", "ndhm", "ehr",
+  "gdpr", "pcidss", "hipaa", "soc2", "fedramp", "cis", "iso42001", "owasp",
+  "nist", "nist80053", "iso27001", "iso27018", "dpdp", "rbi", "sebi", "ndhm", "ehr",
 ];
 
 const FrameworkCard = ({ fw, onNavigate }) => (
@@ -53,8 +53,8 @@ const ComplianceLanding = ({ setSelectedMenu }) => {
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">
               Compliance frameworks are sets of rules and best practices that help organizations protect data, 
-              manage risk, and meet legal requirements. Choose a framework below to scan your cloud infrastructure 
-              across AWS, Azure, and GCP.
+              manage risk, and meet legal requirements. Choose a framework below to scan your AWS infrastructure 
+              and assess compliance posture.
             </p>
           </div>
 

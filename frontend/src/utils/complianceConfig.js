@@ -257,6 +257,58 @@ export const COMPLIANCE_FRAMEWORKS = {
     whoNeedsIt: "Hospitals, clinics, and health IT vendors managing patient records in India",
     keyFocus: "Record standardization, secure storage, access control, data portability, audit logging",
   },
+
+  // ─── Cross-Cloud Frameworks ───────────────────────────────────────────────
+  iso42001: {
+    key: "iso42001",
+    label: "ISO/IEC 42001",
+    fullName: "ISO/IEC 42001 AI Management System",
+    description: "International standard for AI governance and management",
+    icon: "🤖",
+    gradient: "from-purple-600 to-pink-600",
+    reportType: "ISO42001",
+    simpleExplanation: "The first international standard for Artificial Intelligence Management Systems. It provides a framework for organizations to responsibly develop, deploy, and manage AI systems with proper governance, risk management, and ethical considerations.",
+    whoNeedsIt: "Organizations developing or deploying AI/ML systems",
+    keyFocus: "AI governance, risk assessment, ethical AI, transparency, accountability",
+  },
+  owasp: {
+    key: "owasp",
+    label: "OWASP Top 10",
+    fullName: "OWASP Top 10 Web Application Security Risks",
+    description: "Industry standard for web application security awareness",
+    icon: "🕸️",
+    gradient: "from-red-600 to-orange-600",
+    reportType: "owasp",
+    simpleExplanation: "The OWASP Top 10 is a regularly updated list of the most critical web application security risks. It helps developers and security teams understand and mitigate the most common attack vectors against web applications.",
+    whoNeedsIt: "Any organization building or running web applications",
+    keyFocus: "Injection prevention, authentication, access control, security misconfiguration",
+  },
+
+  // ─── Cloud-Specific Well-Architected Frameworks ───────────────────────────
+  "azure-waf": {
+    key: "azure-waf",
+    label: "Azure WAF",
+    fullName: "Microsoft Azure Well-Architected Framework",
+    description: "Azure cloud best practices across 5 pillars",
+    icon: "☁️",
+    gradient: "from-blue-500 to-cyan-600",
+    reportType: "azure-waf",
+    simpleExplanation: "Microsoft's set of guiding tenets to improve the quality of Azure workloads. It covers five pillars: reliability, security, cost optimization, operational excellence, and performance efficiency.",
+    whoNeedsIt: "Any team running workloads on Microsoft Azure",
+    keyFocus: "Reliability, security, cost optimization, operational excellence, performance",
+  },
+  "gcp-caf": {
+    key: "gcp-caf",
+    label: "Google Cloud Architecture",
+    fullName: "Google Cloud Architecture Framework",
+    description: "GCP cloud best practices and design principles",
+    icon: "☁️",
+    gradient: "from-red-500 to-yellow-500",
+    reportType: "gcp-caf",
+    simpleExplanation: "Google Cloud's set of recommendations and best practices for designing and operating cloud workloads. It covers system design, operational excellence, security, privacy, compliance, reliability, cost optimization, and performance.",
+    whoNeedsIt: "Any team running workloads on Google Cloud Platform",
+    keyFocus: "System design, security, reliability, cost optimization, performance",
+  },
 };
 
 // ─── Industry Config ──────────────────────────────────────────────────────────

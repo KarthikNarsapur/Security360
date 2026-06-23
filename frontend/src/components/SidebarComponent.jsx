@@ -326,32 +326,8 @@ export default function SidebarComponent({
                     icon: (
                       <MenuIcon src="/Assets/icons/awafr.png" alt="AWS AWFR" />
                     ),
-                    label: <span className="dark:text-white">AWS WAFR</span>,
+                    label: <span className="dark:text-white">AWS Well-Architected</span>,
                   },
-                  {
-                    key: "aws-cis",
-                    icon: (
-                      <MenuIcon
-                        src="/Assets/icons/cis.jpg"
-                        alt="CIS Compliance"
-                      />
-                    ),
-                    label: (
-                      <span className="dark:text-white">CIS Compliance</span>
-                    ),
-                  },
-                  {
-                    key: "aws-iso",
-                    icon: (
-                      <MenuIcon src="/Assets/icons/iso42001.jpg" alt="ISO 42001" />
-                    ),
-                    label: <span className="dark:text-white">ISO 42001</span>,
-                  },
-                  // {
-                  //   key: "nist",
-                  //   icon: <MenuIcon src="/Assets/icons/nist.png" alt="NIST" />,
-                  //   label: <span className="dark:text-white">NIST</span>,
-                  // },
                 ],
               },
             ],
@@ -537,44 +513,12 @@ export default function SidebarComponent({
 
                 children: [
                   {
-                    key: "az-awafr",
+                    key: "az-waf",
                     icon: (
-                      <MenuIcon src="/Assets/icons/awafr.png" alt="AWS AWFR" />
+                      <VscAzure className="dark:!text-white" />
                     ),
-                    label: <span className="dark:text-white">AWS WAFR</span>,
+                    label: <span className="dark:text-white">Azure Well-Architected</span>,
                   },
-                  {
-                    key: "az-cis",
-                    icon: (
-                      <MenuIcon
-                        src="/Assets/icons/cis.jpg"
-                        alt="CIS Compliance"
-                      />
-                    ),
-                    label: (
-                      <span className="dark:text-white">CIS Compliance</span>
-                    ),
-                  },
-                  {
-                    key: "az-iso",
-                    icon: (
-                      <MenuIcon src="/Assets/icons/iso42001.jpg" alt="ISO 42001" />
-                    ),
-                    label: <span className="dark:text-white">ISO 42001</span>,
-                  },
-                  {
-                    key: "az-owasp",
-                    icon: (
-                      <MenuIcon src="/Assets/icons/owasp.png" alt="OWASP" />
-                    ),
-                    label: <span className="dark:text-white">OWASP</span>,
-                  },
-                  
-                  // {
-                  //   key: "nist",
-                  //   icon: <MenuIcon src="/Assets/icons/nist.png" alt="NIST" />,
-                  //   label: <span className="dark:text-white">NIST</span>,
-                  // },
                 ],
               },
             ],
@@ -648,37 +592,12 @@ export default function SidebarComponent({
 
                 children: [
                   {
-                    key: "gcp-awafr",
+                    key: "gcp-caf",
                     icon: (
-                      <MenuIcon src="/Assets/icons/awafr.png" alt="AWS AWFR" />
+                      <BiLogoGoogleCloud className="dark:!text-white" />
                     ),
-                    label: <span className="dark:text-white">AWS WAFR</span>,
+                    label: <span className="dark:text-white">Google Cloud Architecture</span>,
                   },
-                  {
-                    key: "gcp-cis",
-                    icon: (
-                      <MenuIcon
-                        src="/Assets/icons/cis.jpg"
-                        alt="CIS Compliance"
-                      />
-                    ),
-                    label: (
-                      <span className="dark:text-white">CIS Compliance</span>
-                    ),
-                  },
-                  {
-                    key: "gcp-iso",
-                    icon: (
-                      <MenuIcon src="/Assets/icons/iso42001.jpg" alt="ISO 42001" />
-                    ),
-                    label: <span className="dark:text-white">ISO 42001</span>,
-                  }
-                  
-                  // {
-                  //   key: "nist",
-                  //   icon: <MenuIcon src="/Assets/icons/nist.png" alt="NIST" />,
-                  //   label: <span className="dark:text-white">NIST</span>,
-                  // },
                 ],
               },
             ],
@@ -806,19 +725,39 @@ export default function SidebarComponent({
                 label: withTooltip("Government Security (FedRAMP)"),
               },
               {
-                key: "compliance-wafr",
-                icon: <RiShieldCheckLine className="dark:!text-white" />,
-                label: withTooltip("Cloud Best Practices (AWS Well-Architected)"),
-              },
-              {
                 key: "compliance-cis",
                 icon: <RiShieldCheckLine className="dark:!text-white" />,
                 label: withTooltip("Security Baseline (CIS Benchmark)"),
               },
               {
+                key: "compliance-iso42001",
+                icon: <RiShieldCheckLine className="dark:!text-white" />,
+                label: withTooltip("AI Governance (ISO 42001)"),
+              },
+              {
+                key: "compliance-owasp",
+                icon: <RiShieldCheckLine className="dark:!text-white" />,
+                label: withTooltip("App Security (OWASP Top 10)"),
+              },
+              {
                 key: "compliance-nist",
                 icon: <RiShieldCheckLine className="dark:!text-white" />,
                 label: withTooltip("Risk Framework (NIST CSF)"),
+              },
+              {
+                key: "compliance-nist80053",
+                icon: <RiShieldCheckLine className="dark:!text-white" />,
+                label: withTooltip("Security Controls (NIST SP 800-53)"),
+              },
+              {
+                key: "compliance-iso27001",
+                icon: <RiShieldCheckLine className="dark:!text-white" />,
+                label: withTooltip("Information Security (ISO 27001)"),
+              },
+              {
+                key: "compliance-iso27018",
+                icon: <RiShieldCheckLine className="dark:!text-white" />,
+                label: withTooltip("Cloud Privacy (ISO 27018)"),
               },
               {
                 key: "compliance-dpdp",

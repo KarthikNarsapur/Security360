@@ -25,6 +25,10 @@ def _get_framework_registry():
     from modules.frameworks.DPDP.dpdp_rules_2025_run_checks import (
         run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks,
     )
+    from modules.CIS.cis_framework_adapter import run_cis_checks_sync
+    from modules.ISO.iso_framework_adapter import run_iso42001_checks_sync
+    from modules.NIST.nist_framework_adapter import run_nist_checks_sync
+    from modules.AWAF.awaf_framework_adapter import run_awaf_checks_sync
 
     return {
         "rbi": (run_rbi_checks, None, "global_only"),
@@ -32,6 +36,10 @@ def _get_framework_registry():
         "pcidss": (run_pcidss_checks, None, "global_only"),
         "dpdp": (run_dpdp_global_checks, run_dpdp_regional_checks, "hybrid"),
         "dpdp_rules_2025": (run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks, "hybrid"),
+        "cis": (run_cis_checks_sync, None, "global_only"),
+        "iso42001": (run_iso42001_checks_sync, None, "global_only"),
+        "nist": (run_nist_checks_sync, None, "global_only"),
+        "wafr": (run_awaf_checks_sync, None, "global_only"),
     }
 
 
