@@ -78,7 +78,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "PCI DSS",
     fullName: "Payment Card Industry Data Security Standard",
     description: "Mandatory for all card payment environments",
-    icon: "💳",
     gradient: "from-blue-600 to-indigo-600",
     reportType: "pcidss",
     simpleExplanation: "Keeps credit card data safe. If your business accepts, processes, or stores credit card payments, you must follow these rules.",
@@ -90,7 +89,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "HIPAA",
     fullName: "Health Insurance Portability and Accountability Act",
     description: "US healthcare data protection standard",
-    icon: "🏥",
     gradient: "from-emerald-600 to-teal-600",
     reportType: "hipaa",
     simpleExplanation: "Protects patient health information in the United States. Hospitals, clinics, insurance companies, and their tech partners must follow these rules.",
@@ -102,7 +100,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "SOC 2",
     fullName: "Service Organization Control 2",
     description: "Enterprise security, availability, and confidentiality",
-    icon: "🏢",
     gradient: "from-violet-600 to-purple-600",
     reportType: "soc2",
     simpleExplanation: "Proves your company handles customer data responsibly. Enterprise clients often require this before signing contracts with SaaS or cloud service providers.",
@@ -114,7 +111,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "FedRAMP",
     fullName: "Federal Risk and Authorization Management Program",
     description: "US government cloud security authorization",
-    icon: "🏛",
     gradient: "from-red-600 to-rose-600",
     reportType: "fedramp",
     simpleExplanation: "Required for any cloud service used by the US federal government. It ensures cloud products meet strict security standards before government agencies can use them.",
@@ -126,7 +122,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "AWS Well-Architected",
     fullName: "AWS Well-Architected Framework",
     description: "Cloud best practices across 6 pillars",
-    icon: "☁️",
     gradient: "from-orange-500 to-amber-600",
     reportType: "wafr",
     simpleExplanation: "A set of best practices from AWS to help you build secure, reliable, and cost-effective cloud systems. Think of it as a health check for your cloud setup.",
@@ -138,7 +133,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "CIS Benchmark",
     fullName: "CIS AWS Foundations Benchmark",
     description: "Security baseline configuration standards",
-    icon: "🔒",
     gradient: "from-slate-600 to-gray-700",
     reportType: "cis",
     simpleExplanation: "A checklist of security settings that every cloud account should have. Created by security experts worldwide, it covers the basics that prevent most common attacks.",
@@ -150,7 +144,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "NIST CSF",
     fullName: "NIST Cybersecurity Framework",
     description: "Risk-based cybersecurity framework",
-    icon: "📋",
     gradient: "from-indigo-600 to-blue-700",
     reportType: "nist",
     simpleExplanation: "A widely-used framework that helps organizations understand, manage, and reduce cybersecurity risk. It organizes security into five simple steps: Identify, Protect, Detect, Respond, Recover.",
@@ -162,7 +155,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "NIST SP 800-53",
     fullName: "NIST Special Publication 800-53",
     description: "Security and privacy controls for federal systems",
-    icon: "📜",
     gradient: "from-indigo-700 to-purple-700",
     reportType: "nist80053",
     simpleExplanation: "A comprehensive catalog of security controls required for US federal information systems. It is the most detailed security standard used by government agencies.",
@@ -174,7 +166,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "ISO/IEC 27001",
     fullName: "ISO/IEC 27001 Information Security",
     description: "International information security management standard",
-    icon: "🌐",
     gradient: "from-teal-600 to-cyan-700",
     reportType: "iso27001",
     simpleExplanation: "The international gold standard for information security management. Getting certified shows your customers and partners that you take security seriously at every level of your organization.",
@@ -186,7 +177,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "ISO/IEC 27018",
     fullName: "ISO/IEC 27018 Cloud Privacy",
     description: "Protection of personal data in public clouds",
-    icon: "🔐",
     gradient: "from-cyan-600 to-blue-600",
     reportType: "iso27018",
     simpleExplanation: "Extends ISO 27001 specifically for cloud providers handling personal data. It ensures cloud services protect your customers' private information properly.",
@@ -198,9 +188,8 @@ export const COMPLIANCE_FRAMEWORKS = {
   dpdp: {
     key: "dpdp",
     label: "DPDP Act",
-    fullName: "Digital Personal Data Protection Act, 2023",
+    fullName: "Digital Personal Data Protection Act",
     description: "India's data protection law for personal data",
-    icon: "🇮🇳",
     gradient: "from-orange-500 to-green-600",
     reportType: "dpdp",
     simpleExplanation: "India's landmark data protection law that governs how businesses collect, store, and process personal data of Indian citizens. Similar to GDPR but tailored for India, it gives individuals rights over their data and imposes obligations on organizations handling it.",
@@ -212,7 +201,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "RBI CSF",
     fullName: "RBI Cyber Security Framework",
     description: "Reserve Bank of India cybersecurity guidelines for banks",
-    icon: "🏦",
     gradient: "from-indigo-600 to-purple-600",
     reportType: "rbi",
     simpleExplanation: "Mandatory cybersecurity framework issued by the Reserve Bank of India for all banks and financial institutions. It requires continuous surveillance, IT governance, and incident response capabilities to protect India's banking infrastructure from cyber threats.",
@@ -223,13 +211,12 @@ export const COMPLIANCE_FRAMEWORKS = {
     key: "sebi",
     label: "SEBI CSCRF",
     fullName: "SEBI Cyber Security & Cyber Resilience Framework",
-    description: "SEBI cybersecurity guidelines for market entities",
-    icon: "📈",
+    description: "SEBI CSCRF 2024 — 128 checks across Governance, Protect, Detect, Respond, Recover & Data Localization",
     gradient: "from-violet-600 to-indigo-600",
     reportType: "sebi",
-    simpleExplanation: "Cybersecurity framework mandated by the Securities and Exchange Board of India for stock exchanges, brokers, and market infrastructure institutions. It ensures capital market entities have robust security controls and can recover quickly from cyber incidents.",
-    whoNeedsIt: "Stock exchanges, depositories, brokers, and SEBI-regulated entities",
-    keyFocus: "Real-time threat detection, SOC operations, vulnerability management, cyber resilience",
+    simpleExplanation: "Cybersecurity and Cyber Resilience Framework mandated by SEBI (Circular SEBI/HO/ITD-1/ITD_CSC_EXT/P/CIR/2024/113) for all regulated entities. Covers 6 cybersecurity functions — Governance, Identify, Protect, Detect, Respond, Recover — plus India data localization requirements and enhanced assessments including Ransomware Readiness and Cyber Resilience Scoring.",
+    whoNeedsIt: "Stock exchanges, depositories, brokers, mutual funds, portfolio managers, and all SEBI-regulated entities",
+    keyFocus: "IAM & access control, data encryption, network segmentation, SOC monitoring, backup & DR, India data residency, cyber resilience scoring",
   },
 
   // ─── Healthcare-Specific Frameworks ───────────────────────────────────────
@@ -238,7 +225,6 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "NDHM",
     fullName: "National Digital Health Mission Guidelines",
     description: "India's digital health data protection standards",
-    icon: "🏥",
     gradient: "from-emerald-500 to-green-600",
     reportType: "ndhm",
     simpleExplanation: "India's National Digital Health Mission (Ayushman Bharat Digital Mission) sets standards for how health data is created, stored, and shared digitally. It establishes the Health ID system and ensures interoperability across hospitals, labs, and pharmacies while protecting patient privacy.",
@@ -250,12 +236,59 @@ export const COMPLIANCE_FRAMEWORKS = {
     label: "EHR Standards",
     fullName: "Electronic Health Records Standards (India)",
     description: "MoHFW standards for electronic health records in India",
-    icon: "📋",
     gradient: "from-teal-500 to-emerald-600",
     reportType: "ehr",
     simpleExplanation: "Standards issued by India's Ministry of Health & Family Welfare for maintaining Electronic Health Records. They define how patient medical records should be digitized, stored securely, and made accessible to authorized healthcare providers while maintaining confidentiality.",
     whoNeedsIt: "Hospitals, clinics, and health IT vendors managing patient records in India",
     keyFocus: "Record standardization, secure storage, access control, data portability, audit logging",
+  },
+
+  // ─── Cross-Cloud Frameworks ───────────────────────────────────────────────
+  iso42001: {
+    key: "iso42001",
+    label: "ISO/IEC 42001",
+    fullName: "ISO/IEC 42001 AI Management System",
+    description: "International standard for AI governance and management",
+    gradient: "from-purple-600 to-pink-600",
+    reportType: "ISO42001",
+    simpleExplanation: "The first international standard for Artificial Intelligence Management Systems. It provides a framework for organizations to responsibly develop, deploy, and manage AI systems with proper governance, risk management, and ethical considerations.",
+    whoNeedsIt: "Organizations developing or deploying AI/ML systems",
+    keyFocus: "AI governance, risk assessment, ethical AI, transparency, accountability",
+  },
+  owasp: {
+    key: "owasp",
+    label: "OWASP Top 10",
+    fullName: "OWASP Top 10 Web Application Security Risks",
+    description: "Industry standard for web application security awareness",
+    gradient: "from-red-600 to-orange-600",
+    reportType: "owasp",
+    simpleExplanation: "The OWASP Top 10 is a regularly updated list of the most critical web application security risks. It helps developers and security teams understand and mitigate the most common attack vectors against web applications.",
+    whoNeedsIt: "Any organization building or running web applications",
+    keyFocus: "Injection prevention, authentication, access control, security misconfiguration",
+  },
+
+  // ─── Cloud-Specific Well-Architected Frameworks ───────────────────────────
+  "azure-waf": {
+    key: "azure-waf",
+    label: "Azure WAF",
+    fullName: "Microsoft Azure Well-Architected Framework",
+    description: "Azure cloud best practices across 5 pillars",
+    gradient: "from-blue-500 to-cyan-600",
+    reportType: "azure-waf",
+    simpleExplanation: "Microsoft's set of guiding tenets to improve the quality of Azure workloads. It covers five pillars: reliability, security, cost optimization, operational excellence, and performance efficiency.",
+    whoNeedsIt: "Any team running workloads on Microsoft Azure",
+    keyFocus: "Reliability, security, cost optimization, operational excellence, performance",
+  },
+  "gcp-caf": {
+    key: "gcp-caf",
+    label: "Google Cloud Architecture",
+    fullName: "Google Cloud Architecture Framework",
+    description: "GCP cloud best practices and design principles",
+    gradient: "from-red-500 to-yellow-500",
+    reportType: "gcp-caf",
+    simpleExplanation: "Google Cloud's set of recommendations and best practices for designing and operating cloud workloads. It covers system design, operational excellence, security, privacy, compliance, reliability, cost optimization, and performance.",
+    whoNeedsIt: "Any team running workloads on Google Cloud Platform",
+    keyFocus: "System design, security, reliability, cost optimization, performance",
   },
 };
 
@@ -264,7 +297,6 @@ export const COMPLIANCE_FRAMEWORKS = {
 export const INDUSTRY_CONFIG = {
   healthcare: {
     label: "Healthcare",
-    icon: "🏥",
     description: "Compliance frameworks for healthcare organizations",
     gradient: "from-emerald-600 to-teal-600",
     frameworks: {
@@ -275,7 +307,6 @@ export const INDUSTRY_CONFIG = {
   },
   finance: {
     label: "Finance",
-    icon: "💳",
     description: "Compliance frameworks for financial services",
     gradient: "from-blue-600 to-indigo-600",
     frameworks: {
@@ -286,7 +317,6 @@ export const INDUSTRY_CONFIG = {
   },
   saas: {
     label: "SaaS",
-    icon: "☁️",
     description: "Compliance frameworks for SaaS platforms",
     gradient: "from-violet-600 to-purple-600",
     frameworks: {
@@ -297,7 +327,6 @@ export const INDUSTRY_CONFIG = {
   },
   government: {
     label: "Government",
-    icon: "🏛",
     description: "Compliance frameworks for government agencies",
     gradient: "from-red-600 to-rose-600",
     frameworks: {
@@ -308,7 +337,6 @@ export const INDUSTRY_CONFIG = {
   },
   ecommerce: {
     label: "E-commerce",
-    icon: "🛒",
     description: "Compliance frameworks for e-commerce platforms",
     gradient: "from-orange-500 to-amber-600",
     frameworks: {
@@ -351,6 +379,7 @@ export const normalizeFindings = (rawResults = [], cloud) => {
         remediation: item.remediation || item.recommendation || "",
         affected: item.additional_info?.affected ?? item.affected ?? 0,
         total_scanned: item.additional_info?.total_scanned ?? item.total_scanned ?? 0,
+        result: item.result || null,
         severity_score: item.severity_score || 0,
         fullData: item,
       };

@@ -6,8 +6,13 @@ from Model.model import AccessTokenModel
 
 def get_vpc_flow_logs_function(data: AccessTokenModel):
     """
-    Fetch all CloudWatch log groups for VPC Flow Logs
-    grouped by account_id -> region -> [logGroupNames]
+    Fetch all VPC Flow Logs (all destination types) grouped by
+    account_id -> region -> [flow log details]
+
+    Supports:
+    - cloud-watch-logs (CloudWatch Log Groups)
+    - s3 (S3 Buckets)
+    - kinesis-data-firehose (Firehose delivery streams)
     """
     try:
         if not data.username:
@@ -55,24 +60,32 @@ def get_vpc_flow_logs_function(data: AccessTokenModel):
                             aws_session_token=session_token,
                         )
 
+                        # Fetch ALL flow logs (no destination-type filter)
                         paginator = ec2_client.get_paginator("describe_flow_logs")
-                        pages = paginator.paginate(
-                            Filters=[
-                                {
-                                    "Name": "log-destination-type",
-                                    "Values": ["cloud-watch-logs"],
-                                }
-                            ]
-                        )
+                        pages = paginator.paginate()
+
                         vpc_flow_logs = []
                         for page in pages:
                             for fl in page.get("FlowLogs", []):
-                                vpc_flow_logs.append(
-                                    {
-                                        "flowLogId": fl.get("FlowLogId"),
-                                        "logGroupName": fl.get("LogGroupName"),
-                                    }
-                                )
+                                destination_type = fl.get("LogDestinationType", "cloud-watch-logs")
+                                log_entry = {
+                                    "flowLogId": fl.get("FlowLogId"),
+                                    "destinationType": destination_type,
+                                }
+
+                                if destination_type == "cloud-watch-logs":
+                                    log_entry["logGroupName"] = fl.get("LogGroupName")
+                                elif destination_type == "s3":
+                                    log_destination = fl.get("LogDestination", "")
+                                    # LogDestination for S3 is like: arn:aws:s3:::bucket-name/prefix
+                                    log_entry["s3Destination"] = log_destination
+                                    bucket, prefix = _parse_s3_destination(log_destination)
+                                    log_entry["s3Bucket"] = bucket
+                                    log_entry["s3Prefix"] = prefix
+                                elif destination_type == "kinesis-data-firehose":
+                                    log_entry["firehoseArn"] = fl.get("LogDestination", "")
+
+                                vpc_flow_logs.append(log_entry)
 
                         results[account_id][region] = vpc_flow_logs
                         notifications["success"].append(
@@ -96,3 +109,28 @@ def get_vpc_flow_logs_function(data: AccessTokenModel):
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return {"status": "error", "error_message": str(e)}
+
+
+def _parse_s3_destination(log_destination: str):
+    """
+    Parse S3 ARN destination into bucket and prefix.
+    Example: arn:aws:s3:::my-bucket/my-prefix -> ("my-bucket", "my-prefix")
+    Example: arn:aws:s3:::my-bucket -> ("my-bucket", "")
+    """
+    try:
+        # Remove the ARN prefix: arn:aws:s3:::
+        if log_destination.startswith("arn:aws:s3:::"):
+            path = log_destination.replace("arn:aws:s3:::", "")
+        else:
+            path = log_destination
+
+        if "/" in path:
+            bucket = path.split("/")[0]
+            prefix = "/".join(path.split("/")[1:])
+        else:
+            bucket = path
+            prefix = ""
+
+        return bucket, prefix
+    except Exception:
+        return "", ""

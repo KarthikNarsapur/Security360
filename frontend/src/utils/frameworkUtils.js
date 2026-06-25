@@ -35,6 +35,7 @@ export const buildTableData = (results = []) => {
   return results.map((rule, index) => {
     const scanned = rule.additional_info?.total_scanned ?? 0;
     const affected = rule.additional_info?.affected ?? 0;
+    const result = rule.result || (scanned === 0 && affected === 0 ? "NOT_APPLICABLE" : affected > 0 ? "FAIL" : "PASS");
     return {
       key: `${rule.control_id || index}-${index}`,
       id: rule.control_id || `check-${index}`,
@@ -44,7 +45,8 @@ export const buildTableData = (results = []) => {
       severity_score: rule.severity_score || 0,
       affected,
       total_scanned: scanned,
-      failed_checks: `${affected} out of ${scanned}`,
+      failed_checks: result === "NOT_APPLICABLE" ? "No resources found" : `${affected} out of ${scanned}`,
+      result,
       framework: rule.framework || "",
       control_id: rule.control_id || "",
       region: "global",
@@ -66,6 +68,7 @@ export const buildTableDataFromRegions = (regionResults = []) => {
     items.forEach((rule, index) => {
       const scanned = rule?.additional_info?.total_scanned ?? 0;
       const affected = rule?.additional_info?.affected ?? 0;
+      const result = rule?.result || (scanned === 0 && affected === 0 ? "NOT_APPLICABLE" : affected > 0 ? "FAIL" : "PASS");
       rows.push({
         key: `${rule?.control_id || index}-${region}-${index}`,
         id: rule?.control_id || `check-${index}`,
@@ -75,7 +78,8 @@ export const buildTableDataFromRegions = (regionResults = []) => {
         severity_score: rule?.severity_score || 0,
         affected,
         total_scanned: scanned,
-        failed_checks: `${affected} out of ${scanned}`,
+        failed_checks: result === "NOT_APPLICABLE" ? "No resources found" : `${affected} out of ${scanned}`,
+        result,
         region,
         framework: rule?.framework || "",
         control_id: rule?.control_id || "",
@@ -98,6 +102,7 @@ export const buildTableDataFromWebsite = (allResults = []) => {
     items.forEach((rule, index) => {
       const scanned = rule?.additional_info?.total_scanned ?? 0;
       const affected = rule?.additional_info?.affected ?? 0;
+      const result = rule?.result || (scanned === 0 && affected === 0 ? "NOT_APPLICABLE" : affected > 0 ? "FAIL" : "PASS");
       rows.push({
         key: `${rule?.control_id || index}-${url}-${index}`,
         id: rule?.control_id || `check-${index}`,
@@ -107,7 +112,8 @@ export const buildTableDataFromWebsite = (allResults = []) => {
         severity_score: rule?.severity_score || 0,
         affected,
         total_scanned: scanned,
-        failed_checks: `${affected} out of ${scanned}`,
+        failed_checks: result === "NOT_APPLICABLE" ? "No resources found" : `${affected} out of ${scanned}`,
+        result,
         region: url, // reuse region column for URL
         framework: rule?.framework || "",
         control_id: rule?.control_id || "",
@@ -269,7 +275,7 @@ export const FRAMEWORK_CONFIG = {
   sebi: {
     label: "SEBI CSCRF",
     fullName: "SEBI Cyber Security & Cyber Resilience Framework",
-    description: "SEBI CSCRF 2024 — for Banks, NBFCs & regulated entities",
+    description: "SEBI CSCRF 2024 — 128 compliance checks for regulated entities",
     gradient: "from-violet-600 to-indigo-600",
     apiEndpoint: "/api/sebi-scan",
     reportType: "sebi",
@@ -400,7 +406,7 @@ export const FRAMEWORK_CONFIG = {
   },
   dpdp: {
     label: "DPDP Act",
-    fullName: "Digital Personal Data Protection Act, 2023",
+    fullName: "Digital Personal Data Protection Act",
     description: "India's data protection law for personal data",
     gradient: "from-orange-500 to-green-600",
     apiEndpoint: "/api/compliance-report",

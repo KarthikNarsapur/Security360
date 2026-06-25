@@ -8,6 +8,16 @@ class AccountDetail(BaseModel):
     account_name: Optional[str] = ""
 
 
+class VpcFlowLogSource(BaseModel):
+    """Represents a single VPC Flow Log source with its destination details."""
+    flowLogId: str
+    destinationType: str  # "cloud-watch-logs", "s3", "kinesis-data-firehose"
+    logGroupName: Optional[str] = None  # For CloudWatch
+    s3Bucket: Optional[str] = None  # For S3
+    s3Prefix: Optional[str] = None  # For S3
+    firehoseArn: Optional[str] = None  # For Firehose
+
+
 class AccessTokenModel(BaseModel):
     access_token: Optional[str] = None
     username: str
@@ -15,6 +25,8 @@ class AccessTokenModel(BaseModel):
     regions: list[str]
     pillars: Optional[list[str]] = None
     vpcFlowLogNames: Optional[Dict[str, Dict[str, str]]] = None
+    # New field: selected VPC flow log sources with destination type info
+    vpcFlowLogSources: Optional[Dict[str, Dict[str, VpcFlowLogSource]]] = None
 
 
 class ReportRequest(BaseModel):

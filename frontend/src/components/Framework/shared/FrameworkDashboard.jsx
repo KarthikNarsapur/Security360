@@ -18,7 +18,6 @@ import AccountDropdown from "../../UI/DropDown/AccountDropdown";
 import RegionDropdown from "../../UI/DropDown/RegionDropdown";
 import Spinner from "../../UI/Spinner";
 import {
-  LoadingSkeletonCisDashboard,
   LoadingSkeletonCisDashboardS3Fetch,
 } from "../../LoadingSkeleton";
 import {
@@ -185,6 +184,9 @@ const FrameworkDashboard = ({
     }
   };
 
+  // ── scan progress message ────────────────────────────────────────────────────
+  const [progressMessage, setProgressMessage] = useState("");
+
   // ── run scan ─────────────────────────────────────────────────────────────────
   const handleScanClick = async () => {
     const access_token = Cookies.get("access_token");
@@ -219,63 +221,53 @@ const FrameworkDashboard = ({
     }
 
     try {
-      const wsURL = `${process.env.REACT_APP_WEBSOCKET_URL}/${frameworkKey}-progress`;
+      const wsProtocol = backendUrl.startsWith("https") ? "wss" : "ws";
+      const wsHost = backendUrl.replace(/^https?:\/\//, "");
+      const wsURL = `${wsProtocol}://${wsHost}/ws/scan/${frameworkKey}`;
       const ws = new WebSocket(wsURL);
       setSocket(ws);
 
       ws.onopen = () => {
         setLoading(true);
-        setSelectedRegions([]);
         setProgress(0);
-        sendBackendRequest(ws, payload);
+        setProgressMessage("Connecting...");
+        ws.send(JSON.stringify(payload));
       };
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.progress !== undefined) setProgress(data.progress);
-        if (data.status === "completed" || data.status === "error") {
-          ws.close();
-          setLoading(false);
-          setSocket(null);
-          if (data.status === "error") setProgress(0);
-        }
+        try {
+          const data = JSON.parse(event.data);
+          if (data.percent !== undefined) setProgress(data.percent);
+          if (data.message) setProgressMessage(data.message);
+          if (data.status === "complete") {
+            ws.close();
+            setLoading(false);
+            setSocket(null);
+            setSelectedRegions([]);
+            setSelectedAccounts([]);
+            const result = data.result;
+            if (result?.notifications) {
+              result.notifications.success?.forEach((msg) => notifySuccess(msg));
+              result.notifications.error?.forEach((msg) => notifyError(msg));
+            } else {
+              notifySuccess(`${config.label} scan completed successfully`);
+            }
+          } else if (data.status === "error") {
+            ws.close();
+            setLoading(false);
+            setSocket(null);
+            setProgress(0);
+            notifyError(data.message || `Error in ${config.label} scan`);
+          }
+        } catch (e) { /* ignore parse errors */ }
       };
       ws.onclose = () => setSocket(null);
       ws.onerror = () => {
         notifyError("Failed to connect to progress server.");
         setLoading(false);
+        setProgress(0);
       };
     } catch (err) {
       console.error("WebSocket error:", err);
-    }
-  };
-
-  const sendBackendRequest = async (ws, payload) => {
-    try {
-      const response = await fetch(`${backendUrl}${config.apiEndpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const result = await response.json();
-
-      if (result?.status === "ok") {
-        setSelectedRegions([]);
-        setSelectedAccounts([]);
-        result.notifications?.success?.forEach((msg) => notifySuccess(msg));
-        result.notifications?.error?.forEach((msg) => notifyError(msg));
-      } else {
-        if (ws.readyState === WebSocket.OPEN) ws.close();
-        setLoading(false);
-        setProgress(0);
-        notifyError(result?.error_message || `Error in ${config.label} scan`);
-        if (result?.fail_type === "contact_us")
-          notifyRedirectToContact(navigate, 5);
-      }
-    } catch (err) {
-      notifyError("Failed to start scan: " + err.message);
-      if (ws.readyState === WebSocket.OPEN) ws.close();
-      setLoading(false);
-      setProgress(0);
     }
   };
 
@@ -293,7 +285,57 @@ const FrameworkDashboard = ({
     notifySuccess("Finding hidden successfully");
   };
 
-  if (loading) return <LoadingSkeletonCisDashboard progress={progress} />;
+  if (loading) return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-900 dark:to-indigo-950">
+      <div className="p-6 pl-12">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h1 className={`text-3xl font-bold bg-gradient-to-r ${config.gradient} bg-clip-text text-transparent`}>
+              {config.fullName}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{config.description}</p>
+          </div>
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg rounded-2xl shadow-xl shadow-indigo-500/10 border border-indigo-100 dark:border-slate-700 p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="relative inline-flex items-center justify-center w-16 h-16 mb-4">
+                <div className={`absolute inset-0 rounded-full bg-gradient-to-r ${config.gradient} animate-spin`}>
+                  <div className="absolute inset-1 rounded-full bg-white dark:bg-slate-900"></div>
+                </div>
+                <Play className="w-6 h-6 text-indigo-600 z-10" />
+              </div>
+              <p className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                Running {config.label} Compliance Scan...
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 font-mono min-h-[20px]">
+                {progressMessage || "Initializing..."}
+              </p>
+              {/* Progress bar */}
+              <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                <div
+                  className="h-3 rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${progress}%`,
+                    background: progress >= 96
+                      ? "linear-gradient(90deg, #10b981, #34d399)"
+                      : `linear-gradient(90deg, #6366f1, #818cf8)`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-mono">
+                {progress}%
+              </p>
+              <button
+                onClick={stopScan}
+                className="mt-4 px-4 py-1.5 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition"
+              >
+                Cancel Scan
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-900 dark:to-indigo-950">

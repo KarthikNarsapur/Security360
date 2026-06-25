@@ -2,6 +2,7 @@ import boto3
 from datetime import datetime, timezone, timedelta
 from Model.model import AccessTokenModel
 from utils.upload_to_s3 import upload_to_s3, save_report
+from utils.scan_progress import update_progress, start_capture, stop_capture
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -18,15 +19,27 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # ─────────────────────────────────────────────────────────────────────────────
 def _get_framework_registry():
     from modules.RBI.rbi_run_checks import run_rbi_checks
-    from modules.SEBI.sebi_run_checks import run_sebi_checks
+    from modules.frameworks.SEBI.sebi_run_checks import run_sebi_global_checks, run_sebi_regional_checks
     from modules.PCIDSS.pcidss_run_checks import run_pcidss_checks
     from modules.frameworks.DPDP.dpdp_run_checks import run_dpdp_global_checks, run_dpdp_regional_checks
+    from modules.frameworks.DPDP.dpdp_rules_2025_run_checks import (
+        run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks,
+    )
+    from modules.CIS.cis_framework_adapter import run_cis_checks_sync
+    from modules.ISO.iso_framework_adapter import run_iso42001_checks_sync
+    from modules.NIST.nist_framework_adapter import run_nist_checks_sync
+    from modules.AWAF.awaf_framework_adapter import run_awaf_checks_sync
 
     return {
         "rbi": (run_rbi_checks, None, "global_only"),
-        "sebi": (run_sebi_checks, None, "global_only"),
+        "sebi": (run_sebi_global_checks, run_sebi_regional_checks, "hybrid"),
         "pcidss": (run_pcidss_checks, None, "global_only"),
         "dpdp": (run_dpdp_global_checks, run_dpdp_regional_checks, "hybrid"),
+        "dpdp_rules_2025": (run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks, "hybrid"),
+        "cis": (run_cis_checks_sync, None, "global_only"),
+        "iso42001": (run_iso42001_checks_sync, None, "global_only"),
+        "nist": (run_nist_checks_sync, None, "global_only"),
+        "wafr": (run_awaf_checks_sync, None, "global_only"),
     }
 
 
@@ -34,7 +47,8 @@ def _get_framework_registry():
 # MAIN ENTRY POINT
 # Called from main.py route — same signature as run_scan()
 # ─────────────────────────────────────────────────────────────────────────────
-def run_framework_scan(data: AccessTokenModel, framework: str):
+def run_framework_scan(data: AccessTokenModel, framework: str, scan_id: str = None):
+    _real_stdout = None
     try:
         # step 1: validate input
         if not data.username:
@@ -49,6 +63,15 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                 "status": "error",
                 "error_message": "AWS regions list is missing or empty.",
             }
+
+        # Progress helper — updates percent only; messages come from print()
+        def _progress(percent):
+            if scan_id:
+                update_progress(scan_id, percent, "")
+
+        # Start capturing stdout → WebSocket
+        if scan_id:
+            _real_stdout = start_capture(scan_id)
 
         framework = framework.lower().strip()
         registry = _get_framework_registry()
@@ -141,6 +164,10 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                 elif scan_mode == "hybrid":
                     # Hybrid: global checks once + regional checks per region
                     # 1. Run global checks once
+                    _progress(2)
+                    print("Connecting to AWS...")
+                    _progress(5)
+                    print("Starting scans...")
                     global_meta = _fresh_meta(framework)
                     session = boto3.Session(
                         aws_access_key_id=access_key,
@@ -164,7 +191,8 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                     # 2. Run regional checks per selected region
                     if regional_fn:
                         failed_regions = []
-                        for region in REGIONS:
+                        total_regions = len(REGIONS)
+                        for idx, region in enumerate(REGIONS):
                             session = boto3.Session(
                                 aws_access_key_id=access_key,
                                 aws_secret_access_key=secret_key,
@@ -222,6 +250,8 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                         print(f"Failed regions for {account_id}: {failed_regions}")
 
                 # step 5: save report and upload to S3
+                _progress(96)
+                print("Saving findings...")
                 try:
                     saved_filename = save_report(
                         account_id=account_id,
@@ -242,11 +272,14 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
                     continue
 
                 try:
+                    _progress(98)
+                    print("Uploading reports...")
                     upload_to_s3(
                         file_name=saved_filename,
                         folder_name=f"scan-reports/{framework}/{username}",
                         s3_folder_name=f"aws-account-security-reports/{username}/{framework}",
                     )
+                    print("Upload complete")
                 except Exception as e:
                     print(
                         f"Error uploading {framework} report to S3 for {account_id}: {e}"
@@ -272,6 +305,10 @@ def run_framework_scan(data: AccessTokenModel, framework: str):
     except Exception as e:
         print(f"Unexpected error in run_framework_scan: {e}")
         return {"status": "error", "error_message": "Unknown error occurred"}
+    finally:
+        # Restore stdout if we were capturing
+        if _real_stdout:
+            stop_capture(_real_stdout)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -105,7 +105,7 @@ def get_cloudtrail_findings(data: AccessTokenModel):
                 df = getCTLogsDF(ct_client=ct_client)
                 # print(len(df))
 
-                if df.get("status") == "error":
+                if isinstance(df, dict) and df.get("status") == "error":
                     print(f"Error: ", df.get("error_message"))
                     if failed_region_error_message == "":
                         failed_region_error_message = df.get("error_message")
@@ -214,8 +214,12 @@ def get_cloudtrail_findings(data: AccessTokenModel):
                 )
 
                 result = response.json()
-                # print("result: ", result["findingsData"]["findings"])
-                output_findings = result["findingsData"]["findings"]
+                if "findingsData" not in result:
+                    print(f"Lambda response missing 'findingsData'. Response: {result}")
+                    failed_regions.append(region)
+                    continue
+                findings_data = result["findingsData"]
+                output_findings = findings_data if isinstance(findings_data, list) else findings_data.get("findings", [])
                 all_findings.extend(output_findings)
 
             if len(failed_regions) > 0:

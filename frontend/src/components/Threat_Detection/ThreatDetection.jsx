@@ -61,6 +61,7 @@ function ThreatDetection({
   const [selectedReportScanTypes, setSelectedReportScanTypes] = useState([]); //for report account
   const [showVpcLogModal, setShowVpcLogModal] = useState(false);
   const [vpcFlowLogNames, setVpcFlowLogNames] = useState({});
+  const [vpcFlowLogSources, setVpcFlowLogSources] = useState({});
   const [optionsMap, setOptionsMap] = useState({});
 
   const [isThreatDetectionSampleReport, setIsThreatDetectionSampleReport] =
@@ -263,6 +264,7 @@ function ThreatDetection({
       regions: selectedRegions || [],
       username: localStorage.getItem("username") || "",
       vpcFlowLogNames: vpcFlowLogNames || {},
+      vpcFlowLogSources: vpcFlowLogSources || {},
     };
 
     if (!access_token || !payload.username) {
@@ -491,6 +493,8 @@ function ThreatDetection({
             selectedRegions={selectedRegions}
             optionsMap={optionsMap}
             setOptionsMap={setOptionsMap}
+            vpcFlowLogSources={vpcFlowLogSources}
+            setVpcFlowLogSources={setVpcFlowLogSources}
           />
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
   Eye,
   Download,
 } from "lucide-react";
+import Footer from "./Footer";
 
 function WelcomePage() {
   const navigate = useNavigate();
@@ -221,6 +222,8 @@ function WelcomePage() {
           </div>
         </div>
       </motion.section>
+
+      <Footer />
     </div>
   );
 }
