@@ -92,8 +92,9 @@ const exportToExcel = async (data, allFindings, frameworkKey) => {
 
   // Include ALL findings (passed + failed) in the Excel
   allFindings.forEach((row, idx) => {
-    const result = row.affected > 0 ? "FAIL" : "PASS";
+    const result = (row.total_scanned === 0 && row.affected === 0) ? "NOT APPLICABLE" : row.affected > 0 ? "FAIL" : "PASS";
     const description = row.fullData?.problem_statement || row.fullData?.description || row.description || "";
+    const failedChecksText = result === "NOT APPLICABLE" ? "No resources found" : `${row.affected || 0} out of ${row.total_scanned || 0}`;
     const r = findings.addRow([
       idx + 1,
       row.id || row.control_id || "",
@@ -106,13 +107,14 @@ const exportToExcel = async (data, allFindings, frameworkKey) => {
       row.severity_score || 0,
       row.affected || 0,
       row.total_scanned || 0,
-      `${row.affected || 0} out of ${row.total_scanned || 0}`,
+      failedChecksText,
       row.region || "global",
       result,
     ]);
     // Color the result cell
     const resultCell = r.getCell(14);
-    resultCell.font = { bold: true, color: { argb: result === "PASS" ? "FF10B981" : "FFEF4444" } };
+    const resultColor = result === "PASS" ? "FF10B981" : result === "NOT APPLICABLE" ? "FF6B7280" : "FFEF4444";
+    resultCell.font = { bold: true, color: { argb: resultColor } };
     // Severity color
     const sevCell = r.getCell(8);
     const sevColors = { Critical: "FFDC2626", High: "FFEA580C", Medium: "FFD97706", Low: "FF2563EB" };
@@ -372,7 +374,11 @@ const FindingsTable = ({
       render: (text, record) => (
         <span
           className={
-            record.affected > 0 ? "text-red-600 font-medium" : "text-green-600"
+            record.result === "NOT_APPLICABLE"
+              ? "text-gray-500 italic"
+              : record.affected > 0
+                ? "text-red-600 font-medium"
+                : "text-green-600"
           }
         >
           {text}

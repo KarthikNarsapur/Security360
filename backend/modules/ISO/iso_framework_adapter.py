@@ -34,8 +34,19 @@ def run_iso42001_checks_sync(session, scan_meta_data):
 def _normalize_iso_finding(check_id, raw, scan_meta_data):
     """Convert a raw ISO check result dict into the standard finding format."""
     severity = raw.get("severity_level", raw.get("severity", "Medium"))
-    affected = raw.get("affected", 0)
-    total_scanned = raw.get("total_scanned", 0)
+    
+    # Read from additional_info first (where check functions actually put them), fallback to top-level
+    additional_info = raw.get("additional_info", {})
+    affected = additional_info.get("affected", raw.get("affected", 0))
+    total_scanned = additional_info.get("total_scanned", raw.get("total_scanned", 0))
+
+    # Determine result: if no resources were scanned at all, mark as Not Applicable
+    if total_scanned == 0 and affected == 0:
+        result = "NOT_APPLICABLE"
+    elif affected > 0:
+        result = "FAIL"
+    else:
+        result = "PASS"
 
     # Update scan_meta_data counters
     scan_meta_data["total_scanned"] += total_scanned
@@ -55,11 +66,13 @@ def _normalize_iso_finding(check_id, raw, scan_meta_data):
         "severity_score": raw.get("severity_score", _severity_to_score(severity)),
         "affected": affected,
         "total_scanned": total_scanned,
+        "result": result,
         "region": raw.get("region", "global"),
+        "problem_statement": raw.get("problem_statement", raw.get("description", "")),
         "description": raw.get("description", raw.get("problem_statement", "")),
         "remediation": raw.get("remediation", raw.get("recommendation", "")),
         "frameworks": ["iso42001"],
-        "additional_info": raw.get("additional_info", {}),
+        "additional_info": additional_info,
     }
 
 

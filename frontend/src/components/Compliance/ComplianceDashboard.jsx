@@ -346,7 +346,8 @@ const ComplianceDashboard = ({
     severity_score: f.severity_score,
     affected: f.affected,
     total_scanned: f.total_scanned,
-    failed_checks: `${f.affected} out of ${f.total_scanned}`,
+    failed_checks: f.total_scanned === 0 && f.affected === 0 ? "No resources found" : `${f.affected} out of ${f.total_scanned}`,
+    result: f.total_scanned === 0 && f.affected === 0 ? "NOT_APPLICABLE" : f.affected > 0 ? "FAIL" : "PASS",
     region: f.region,
     fullData: f.fullData,
   }));

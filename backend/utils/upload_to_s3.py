@@ -165,6 +165,8 @@ def get_report_from_s3_function(data: ReportRequest):
             }
 
     try:
+        # Normalize report type to lowercase to handle any case from frontend
+        data.type = data.type.lower().strip() if data.type else data.type
 
         # threat detection report
         if data.type == "threat_detection":
