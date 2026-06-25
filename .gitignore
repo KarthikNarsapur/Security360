@@ -7,7 +7,7 @@ node_modules/
 .vscode/
 .kiro/
 .vscode
-.kiro\specs\compliance-industry-dashboard\.config.kiro
+.kiro/*
 
 # --- Python ---
 *.pyc
