@@ -279,12 +279,91 @@ const FindingsTable = ({
     setSelectedClouds([]);
   };
 
-  const handleExportJSON = () => {
-    downloadJSON(filteredData, `${frameworkKey}-findings.json`);
-    notifySuccess("Exported to JSON!");
+  const handleExportJSON = async () => {
+    try {
+      notifySuccess("Generating JSON report with AI recommendations...");
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+
+      // Build export data from filtered findings
+      const exportData = filteredData.map(({ fullData, ...rest }) => ({
+        ...rest,
+        reason: fullData?.problem_statement || fullData?.description || rest.description || "",
+      }));
+
+      // Fetch AI remediations for failed findings only
+      const failedItems = exportData.filter((f) => f.affected > 0);
+      let aiRemediations = [];
+
+      try {
+        const batchSize = 20;
+        for (let i = 0; i < failedItems.length; i += batchSize) {
+          const batch = failedItems.slice(i, i + batchSize).map((r) => ({
+            resource_name: r.check_name || r.id || "",
+            service: r.service || "",
+            reason: (r.reason || "").substring(0, 100),
+          }));
+          const resp = await fetch(`${backendUrl}/api/generate-remediation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ findings: batch }),
+          });
+          const result = await resp.json();
+          if (result?.status === "ok" && result.remediations?.length) {
+            const parsed = result.remediations.map((r) => {
+              if (typeof r === "string") {
+                try { const obj = JSON.parse(r); return obj.remediation || obj.Remediation || r; } catch { return r; }
+              }
+              if (typeof r === "object") return r.remediation || r.Remediation || JSON.stringify(r);
+              return String(r);
+            });
+            aiRemediations.push(...parsed);
+          } else {
+            aiRemediations.push(...batch.map(() => ""));
+          }
+        }
+      } catch (e) {
+        console.error("AI remediation fetch failed for JSON export:", e);
+      }
+
+      // Consolidate: merge AI recommendations into each finding
+      let failedIdx = 0;
+      const consolidatedFindings = exportData.map((finding) => {
+        if (finding.affected > 0) {
+          const rec = aiRemediations[failedIdx] || "";
+          failedIdx++;
+          return { ...finding, ai_recommendation: rec };
+        }
+        return { ...finding, ai_recommendation: "" };
+      });
+
+      const jsonOutput = {
+        framework: frameworkKey?.toUpperCase(),
+        exported_at: new Date().toISOString(),
+        total_checks: consolidatedFindings.length,
+        passed: consolidatedFindings.filter((f) => f.affected === 0).length,
+        failed: consolidatedFindings.filter((f) => f.affected > 0).length,
+        findings: consolidatedFindings,
+      };
+
+      const blob = new Blob([JSON.stringify(jsonOutput, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${frameworkKey}-findings.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      notifySuccess("Exported to JSON with AI recommendations!");
+    } catch (err) {
+      console.error("JSON export failed:", err);
+      // Fallback to simple export without AI
+      downloadJSON(filteredData, `${frameworkKey}-findings.json`);
+      notifySuccess("Exported to JSON!");
+    }
   };
 
   const handleExportCSV = () => {
+    notifySuccess("Generating Excel report with AI recommendations...");
     exportToExcel(filteredData, allFindings.length > 0 ? allFindings : filteredData, frameworkKey);
   };
 

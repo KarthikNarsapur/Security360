@@ -1,46 +1,63 @@
 """
-Adapter to plug ISO 42001 checks into the unified framework_scan.py registry.
-Converts the existing async ISO check dict into the standard (session, scan_meta_data) -> list format.
+Adapter to plug ISO 27001 checks into the unified framework_scan.py registry.
+Runs all 72 active checks and returns normalized findings.
 """
-from modules.ISO.iso_run_checks import iso_checks
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
-def run_iso42001_checks_sync(session, scan_meta_data):
+def run_iso27001_checks_sync(session, scan_meta_data, progress_callback=None):
     """
-    Synchronous wrapper for ISO 42001 checks compatible with framework_scan.py.
-    Runs all ISO checks and returns results as a list of dicts.
+    Synchronous wrapper for ISO 27001 checks compatible with framework_scan.py.
+    Runs all 72 active checks across 9 domains.
+    progress_callback: optional fn(percent) to update scan progress.
     """
+    from modules.frameworks.iso27001.iso27001_run_checks import get_iso27001_checks
+
+    checks = get_iso27001_checks()
     results = []
+    total_checks = len(checks)
+    completed = 0
 
-    for check_id, check_function in iso_checks.items():
+    def _update_percent():
+        nonlocal completed
+        completed += 1
+        if progress_callback:
+            percent = 2 + int((completed / total_checks) * 93)
+            progress_callback(percent)
+
+    for check_id, check_function in checks.items():
         try:
-            print(f"  ISO 42001 check: {check_id}")
+            print(f"  ISO 27001 check: {check_id}")
             check_result = check_function(session)
 
-            # Normalize result into the standard finding format
+            if check_result is None:
+                _update_percent()
+                continue
+
             if isinstance(check_result, dict):
-                finding = _normalize_iso_finding(check_id, check_result, scan_meta_data)
+                finding = _normalize_finding(check_id, check_result, scan_meta_data)
                 results.append(finding)
             elif isinstance(check_result, list):
                 for item in check_result:
-                    finding = _normalize_iso_finding(check_id, item, scan_meta_data)
+                    finding = _normalize_finding(check_id, item, scan_meta_data)
                     results.append(finding)
         except Exception as e:
-            print(f"  ISO 42001 check {check_id} error: {e}")
+            print(f"  ISO 27001 check {check_id} error: {e}")
+        _update_percent()
 
     return results
 
 
-def _normalize_iso_finding(check_id, raw, scan_meta_data):
-    """Convert a raw ISO check result dict into the standard finding format."""
+def _normalize_finding(check_id, raw, scan_meta_data):
+    """Convert a raw ISO 27001 check result dict into the standard finding format."""
     severity = raw.get("severity_level", raw.get("severity", "Medium"))
-    
-    # Read from additional_info first (where check functions actually put them), fallback to top-level
+
     additional_info = raw.get("additional_info", {})
     affected = additional_info.get("affected", raw.get("affected", 0))
     total_scanned = additional_info.get("total_scanned", raw.get("total_scanned", 0))
 
-    # Determine result: if no resources were scanned at all, mark as Not Applicable
     if total_scanned == 0 and affected == 0:
         result = "NOT_APPLICABLE"
     elif affected > 0:
@@ -54,7 +71,7 @@ def _normalize_iso_finding(check_id, raw, scan_meta_data):
     if severity in scan_meta_data:
         scan_meta_data[severity] += (1 if affected > 0 else 0)
 
-    service = raw.get("service", "AI Management")
+    service = raw.get("service", "Information Security")
     if service not in scan_meta_data.get("services_scanned", []):
         scan_meta_data.setdefault("services_scanned", []).append(service)
 
@@ -71,7 +88,7 @@ def _normalize_iso_finding(check_id, raw, scan_meta_data):
         "problem_statement": raw.get("problem_statement", raw.get("description", "")),
         "description": raw.get("description", raw.get("problem_statement", "")),
         "remediation": raw.get("remediation", raw.get("recommendation", "")),
-        "frameworks": ["iso42001"],
+        "frameworks": ["iso27001"],
         "additional_info": additional_info,
     }
 

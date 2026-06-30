@@ -85,7 +85,7 @@ def init_progress(scan_id: str):
     """Initialize a new scan progress entry."""
     with _lock:
         _progress_store[scan_id] = {
-            "percent": 0,
+            "percent": 1,
             "message": "Starting scan...",
             "status": "running",
             "websocket": None,
