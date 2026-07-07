@@ -226,7 +226,7 @@ def get_report_from_s3_function(data: ReportRequest):
         # cis scan reports
         # Legacy standalone branches removed — now handled by the unified framework block below
 
-        elif data.type in ("rbi", "sebi", "pcidss", "dpdp", "cis", "iso42001", "nist", "wafr", "owasp"):
+        elif data.type in ("rbi", "sebi", "pcidss", "dpdp", "cis", "iso42001", "iso27001", "iso27018", "nist", "wafr", "owasp", "ndhm", "dpdp_rules_2025"):
             framework = data.type
 
             # Legacy S3 path mapping for frameworks that previously used different folder names

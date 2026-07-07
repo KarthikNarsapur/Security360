@@ -304,6 +304,16 @@ export const INDUSTRY_CONFIG = {
       recommended: ["nist", "iso27001", "iso27018", "rbi"],
       optional: ["cis", "sebi"],
     },
+    india: {
+      label: "Healthcare — India",
+      description: "Indian healthcare compliance frameworks",
+      frameworks: ["dpdp", "ndhm", "spdi", "certin", "iso27001", "iso27701", "nist", "cis", "soc2"],
+    },
+    global: {
+      label: "Healthcare — Global",
+      description: "International healthcare compliance frameworks",
+      frameworks: ["hipaa", "hitech", "gdpr", "nis2", "pipeda", "privacy_act_1988", "iso27001", "iso27799", "iso27701", "soc2", "nist", "hitrust", "cis"],
+    },
   },
   finance: {
     label: "Finance",

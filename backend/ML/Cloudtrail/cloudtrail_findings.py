@@ -249,7 +249,7 @@ def get_cloudtrail_findings(data: AccessTokenModel):
             try:
                 upload_to_s3(
                     file_name=saved_filename,
-                    folder_name=f"threat_detection_reports/{username}/Cloudtrail",
+                    folder_name=f"scan-reports/threat-detection-reports/{username}/cloudtrail",
                     s3_folder_name=f"AWS-Threat-Detection/{username}/Cloudtrail",
                 )
             except Exception as e:

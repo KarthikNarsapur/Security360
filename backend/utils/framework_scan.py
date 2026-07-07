@@ -28,6 +28,8 @@ def _get_framework_registry():
     from modules.CIS.cis_framework_adapter import run_cis_checks_sync
     from modules.frameworks.iso42001.iso_framework_adapter import run_iso42001_checks_sync
     from modules.frameworks.iso27001.iso27001_framework_adapter import run_iso27001_checks_sync
+    from modules.frameworks.iso27018.iso27018_checks import run_iso27018_global_checks, run_iso27018_regional_checks
+    from modules.frameworks.NDHM.ndhm_run_checks import run_ndhm_global_checks, run_ndhm_regional_checks
     from modules.NIST.nist_framework_adapter import run_nist_checks_sync
     from modules.AWAF.awaf_framework_adapter import run_awaf_checks_sync
 
@@ -40,6 +42,8 @@ def _get_framework_registry():
         "cis": (run_cis_checks_sync, None, "global_only"),
         "iso42001": (run_iso42001_checks_sync, None, "global_only"),
         "iso27001": (run_iso27001_checks_sync, None, "global_only"),
+        "iso27018": (run_iso27018_global_checks, run_iso27018_regional_checks, "hybrid"),
+        "ndhm": (run_ndhm_global_checks, run_ndhm_regional_checks, "hybrid"),
         "nist": (run_nist_checks_sync, None, "global_only"),
         "wafr": (run_awaf_checks_sync, None, "global_only"),
     }

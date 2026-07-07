@@ -417,11 +417,6 @@ function ThreatDetection({
               <ScanTypeDropdown
                 onScanTypeChange={(value) => {
                   setSelectedReportScanTypes(value);
-                  handleReportAccountChange(
-                    selectedReportAccount,
-                    false,
-                    value
-                  );
                 }}
                 selectedScanTypes={selectedReportScanTypes}
                 disabled={s3FetchLoading || loading}
@@ -431,7 +426,7 @@ function ThreatDetection({
             <div className="w-60">
               {/* account dropdown */}
               <AccountDropdown
-                onAccountChange={handleReportAccountChange}
+                onAccountChange={(accounts) => setSelectedReportAccount(accounts)}
                 selectedAccounts={selectedReportAccount}
                 accountOptions={infra_accounts}
                 placeholder="Select account to view report"
@@ -439,6 +434,24 @@ function ThreatDetection({
                 disabled={loading || s3FetchLoading}
               />
             </div>
+
+            {/* View Findings button */}
+            <Button
+              type="primary"
+              icon={s3FetchLoading && !isThreatDetectionSampleReport ? null : <Play className="w-4 h-4" />}
+              onClick={() => handleReportAccountChange(selectedReportAccount, false, selectedReportScanTypes)}
+              disabled={s3FetchLoading || loading}
+              className="!bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 border-0 font-semibold px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+            >
+              {s3FetchLoading && !isThreatDetectionSampleReport ? (
+                <span>
+                  Loading Findings&nbsp;&nbsp;
+                  <Spinner />
+                </span>
+              ) : (
+                <span>View Findings</span>
+              )}
+            </Button>
 
             {/* Sample data button */}
             <Button
