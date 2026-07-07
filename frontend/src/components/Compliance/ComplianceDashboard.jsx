@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Alert } from "antd";
-import { Play, User, Clock } from "lucide-react";
+import { Play, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 
@@ -13,21 +13,17 @@ import {
   GetSampleReportNote,
   fetchUserDetails,
 } from "../Utils";
-import { notifyError, notifySuccess, notifyInfo, notifyRedirectToContact } from "../Notification";
+import { notifyError, notifySuccess, notifyInfo } from "../Notification";
 
 import ScanCharts from "../Framework/shared/ScanCharts";
 import SummaryCards from "../Framework/shared/SummaryCards";
 import FindingsTable from "../Framework/shared/FindingsTable";
 import FindingDrawer from "../Framework/shared/FindingDrawer";
-import CloudFilter from "./CloudFilter";
-
 import { computeDashboardMeta } from "../../utils/frameworkUtils";
 import {
   COMPLIANCE_FRAMEWORKS,
   CLOUD_ACCOUNT_KEYS,
   normalizeFindings,
-  mergeMultiCloudFindings,
-  filterByCloud,
   sortBySeverity,
 } from "../../utils/complianceConfig";
 
@@ -37,6 +33,22 @@ const SCAN_ENDPOINTS = {
   rbi: "/api/rbi-scan",
   sebi: "/api/sebi-scan",
   pcidss: "/api/pcidss-scan",
+  gdpr: "/api/gdpr-scan",
+  hipaa: "/api/hipaa-scan",
+  soc2: "/api/soc2-scan",
+  fedramp: "/api/fedramp-scan",
+  wafr: "/api/wafr-scan",
+  cis: "/api/cis-scan",
+  nist: "/api/nist-scan",
+  nist80053: "/api/nist80053-scan",
+  iso27001: "/api/iso27001-scan",
+  iso27018: "/api/iso27018-scan",
+  iso42001: "/api/iso42001-scan",
+  owasp: "/api/owasp-scan",
+  ndhm: "/api/ndhm-scan",
+  ehr: "/api/ehr-scan",
+  "azure-waf": "/api/azure-waf-scan",
+  "gcp-caf": "/api/gcp-caf-scan",
 };
 
 const ComplianceDashboard = ({
@@ -50,18 +62,11 @@ const ComplianceDashboard = ({
   const navigate = useNavigate();
   const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
-  // ── Cloud filter ────────────────────────────────────────────────────────────
-  const [selectedCloud, setSelectedCloud] = useState("all");
-
-  // ── Account selection per cloud ─────────────────────────────────────────────
+  // ── Account selection ─────────────────────────────────────────────────────
   const [awsAccount, setAwsAccount] = useState(undefined);
-  const [azureAccount, setAzureAccount] = useState(undefined);
-  const [gcpAccount, setGcpAccount] = useState(undefined);
 
   // ── Scan controls ───────────────────────────────────────────────────────────
   const [scanAccounts, setScanAccounts] = useState([]);
-  const [scanAzureAccounts, setScanAzureAccounts] = useState([]);
-  const [scanGcpAccounts, setScanGcpAccounts] = useState([]);
   const [scanRegions, setScanRegions] = useState([]);
   const [scanning, setScanning] = useState(false);
   const hasScanEndpoint = !!SCAN_ENDPOINTS[frameworkKey];
@@ -89,8 +94,6 @@ const ComplianceDashboard = ({
 
   // ── Account lists from localStorage ─────────────────────────────────────────
   const awsAccounts = JSON.parse(localStorage.getItem(CLOUD_ACCOUNT_KEYS.aws) || "[]");
-  const azureAccounts = JSON.parse(localStorage.getItem(CLOUD_ACCOUNT_KEYS.azure) || "[]");
-  const gcpAccounts = JSON.parse(localStorage.getItem(CLOUD_ACCOUNT_KEYS.gcp) || "[]");
 
   useEffect(() => {
     const getUserData = async () => {
@@ -119,8 +122,6 @@ const ComplianceDashboard = ({
     setIsReportAvailable(false);
     setIsSampleReport(false);
     setAwsAccount(undefined);
-    setAzureAccount(undefined);
-    setGcpAccount(undefined);
     setScanComplete(false);
     setScanProgress({ percent: 0, message: "" });
     setCardFilter("failed");
@@ -130,8 +131,8 @@ const ComplianceDashboard = ({
     });
   }, [frameworkKey]);
 
-  // ── Fetch report for a single cloud ─────────────────────────────────────────
-  const fetchCloudReport = async (cloud, accountId, isSample = false) => {
+  // ── Fetch report for AWS ──────────────────────────────────────────────────────
+  const fetchAwsReport = async (accountId, isSample = false) => {
     try {
       const parsedAccount = isSample ? {} : JSON.parse(accountId || "{}");
       const payload = {
@@ -139,7 +140,7 @@ const ComplianceDashboard = ({
         username: localStorage.getItem("username"),
         type: config.reportType,
         is_sample: isSample,
-        cloud,
+        cloud: "aws",
       };
 
       const response = await fetch(`${backendUrl}/api/get-report`, {
@@ -158,7 +159,7 @@ const ComplianceDashboard = ({
           : [];
         return {
           status: "ok",
-          findings: normalizeFindings(results, cloud),
+          findings: normalizeFindings(results, "aws"),
           lastScanned: report?.timestamp || new Date().toISOString(),
           error: null,
         };
@@ -169,44 +170,33 @@ const ComplianceDashboard = ({
     }
   };
 
-  // ── Load reports from all clouds ────────────────────────────────────────────
+  // ── Load report ─────────────────────────────────────────────────────────────
   const loadReports = async (isSample = false) => {
     setLoading(true);
     setIsSampleReport(isSample);
 
-    // Only fetch clouds that have an account selected (or all for sample)
-    const cloudConfigs = [
-      { cloud: "aws", account: awsAccount },
-      { cloud: "azure", account: azureAccount },
-      { cloud: "gcp", account: gcpAccount },
-    ];
+    const result = await fetchAwsReport(isSample ? "" : awsAccount, isSample);
 
-    const promises = cloudConfigs.map(({ cloud, account }) => {
-      if (isSample || account) {
-        return fetchCloudReport(cloud, isSample ? "" : account, isSample);
-      }
-      // Cloud not selected — return null (skip it)
-      return Promise.resolve(null);
-    });
+    const cloudStatuses = {};
+    if (result.status === "error") {
+      cloudStatuses.aws = { status: "error", lastScanned: null, error: result.error || "Failed to load" };
+    } else {
+      cloudStatuses.aws = {
+        status: result.findings.length > 0 ? "ok" : "empty",
+        lastScanned: result.lastScanned || null,
+        error: null,
+      };
+    }
 
-    const results = await Promise.allSettled(promises);
-
-    const unwrap = (r) => {
-      if (r.status !== "fulfilled") return { status: "error", findings: [], lastScanned: null, error: "Request failed" };
-      return r.value; // null means cloud was not selected
-    };
-
-    const merged = mergeMultiCloudFindings(unwrap(results[0]), unwrap(results[1]), unwrap(results[2]));
-
-    setAllFindings(merged.findings);
-    setCloudStatuses(merged.cloudStatuses);
+    setAllFindings(sortBySeverity(result.findings || []));
+    setCloudStatuses(cloudStatuses);
     setIsReportAvailable(true);
     setLoading(false);
   };
 
   const handleViewReports = () => {
-    if (!awsAccount && !azureAccount && !gcpAccount) {
-      notifyError("Select at least one account from any cloud");
+    if (!awsAccount) {
+      notifyError("Please select an AWS account");
       return;
     }
     loadReports(false);
@@ -226,15 +216,13 @@ const ComplianceDashboard = ({
     }
 
     const parsedAwsAccounts = (scanAccounts || []).map((a) => { try { return JSON.parse(a); } catch { return null; } }).filter(Boolean);
-    const parsedAzureAccounts = (scanAzureAccounts || []).map((a) => { try { return JSON.parse(a); } catch { return null; } }).filter(Boolean);
-    const parsedGcpAccounts = (scanGcpAccounts || []).map((a) => { try { return JSON.parse(a); } catch { return null; } }).filter(Boolean);
 
-    if (!parsedAwsAccounts.length && !parsedAzureAccounts.length && !parsedGcpAccounts.length) {
-      notifyError("Select at least one account from any cloud");
+    if (!parsedAwsAccounts.length) {
+      notifyError("Please select at least one AWS account");
       return;
     }
-    if (parsedAwsAccounts.length > 0 && !scanRegions?.length) {
-      notifyError("Please select at least one region for AWS scan");
+    if (!scanRegions?.length) {
+      notifyError("Please select at least one AWS region");
       return;
     }
 
@@ -310,8 +298,6 @@ const ComplianceDashboard = ({
       }
 
       setScanAccounts([]);
-      setScanAzureAccounts([]);
-      setScanGcpAccounts([]);
       setScanRegions([]);
     } catch (err) {
       notifyError("Scan failed: " + err.message);
@@ -341,7 +327,7 @@ const ComplianceDashboard = ({
   };
 
   // ── Derived data ────────────────────────────────────────────────────────────
-  const allCloudFindings = sortBySeverity(filterByCloud(allFindings, selectedCloud));
+  const allCloudFindings = sortBySeverity(allFindings);
   const filteredFindings = allCloudFindings.filter((f) => {
     if (cardFilter === "passed") return f.affected === 0;
     if (cardFilter === "failed") return f.affected > 0;
@@ -360,7 +346,8 @@ const ComplianceDashboard = ({
     severity_score: f.severity_score,
     affected: f.affected,
     total_scanned: f.total_scanned,
-    failed_checks: `${f.affected} out of ${f.total_scanned}`,
+    failed_checks: f.total_scanned === 0 && f.affected === 0 ? "No resources found" : `${f.affected} out of ${f.total_scanned}`,
+    result: f.total_scanned === 0 && f.affected === 0 ? "NOT_APPLICABLE" : f.affected > 0 ? "FAIL" : "PASS",
     region: f.region,
     fullData: f.fullData,
   }));
@@ -373,20 +360,12 @@ const ComplianceDashboard = ({
     }))
   );
 
-  const errorClouds = Object.entries(cloudStatuses)
-    .filter(([, s]) => s.status === "error")
-    .map(([cloud]) => cloud);
-
-  const activeClouds = Object.entries(cloudStatuses)
-    .filter(([, s]) => s.status !== "skipped");
-
   const handleHideFinding = (e, findingId) => {
     e.stopPropagation();
     setHiddenFindings((prev) => [...prev, findingId]);
   };
 
-  const allCloudsFailed = activeClouds.length > 0 && activeClouds.every(([, s]) => s.status === "error");
-  const someCloudsFailed = errorClouds.length > 0 && !allCloudsFailed;
+  const allCloudsFailed = cloudStatuses.aws?.status === "error";
 
   if (!config) return <div className="p-12 text-red-500">Unknown framework: {frameworkKey}</div>;
 
@@ -438,26 +417,6 @@ const ComplianceDashboard = ({
                       selectedAccounts={scanAccounts}
                       accountOptions={awsAccounts}
                       placeholder={awsAccounts.length > 0 ? "Select AWS accounts" : "No AWS accounts"}
-                      disabled={scanning || loading}
-                    />
-                  </div>
-                  <div className="w-48">
-                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Azure Subscriptions</label>
-                    <AccountDropdown
-                      onAccountChange={setScanAzureAccounts}
-                      selectedAccounts={scanAzureAccounts}
-                      accountOptions={azureAccounts}
-                      placeholder={azureAccounts.length > 0 ? "Select Azure subscriptions" : "No Azure subscriptions"}
-                      disabled={scanning || loading}
-                    />
-                  </div>
-                  <div className="w-48">
-                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">GCP Projects</label>
-                    <AccountDropdown
-                      onAccountChange={setScanGcpAccounts}
-                      selectedAccounts={scanGcpAccounts}
-                      accountOptions={gcpAccounts}
-                      placeholder={gcpAccounts.length > 0 ? "Select GCP projects" : "No GCP projects"}
                       disabled={scanning || loading}
                     />
                   </div>
@@ -524,7 +483,7 @@ const ComplianceDashboard = ({
               <>
                 <div className="mt-6 border-t border-gray-200 dark:border-gray-700" />
 
-            {/* ── Account selectors per cloud ───────────────────────────────── */}
+            {/* ── Account selectors ───────────────────────────────────── */}
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <div className="w-52">
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">AWS Account</label>
@@ -533,28 +492,6 @@ const ComplianceDashboard = ({
                   selectedAccounts={awsAccount}
                   accountOptions={awsAccounts}
                   placeholder={awsAccounts.length > 0 ? "Select AWS account" : "No AWS accounts"}
-                  mode="single"
-                  disabled={loading}
-                />
-              </div>
-              <div className="w-52">
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Azure Subscription</label>
-                <AccountDropdown
-                  onAccountChange={setAzureAccount}
-                  selectedAccounts={azureAccount}
-                  accountOptions={azureAccounts}
-                  placeholder={azureAccounts.length > 0 ? "Select Azure subscription" : "No Azure subscriptions"}
-                  mode="single"
-                  disabled={loading}
-                />
-              </div>
-              <div className="w-52">
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">GCP Project</label>
-                <AccountDropdown
-                  onAccountChange={setGcpAccount}
-                  selectedAccounts={gcpAccount}
-                  accountOptions={gcpAccounts}
-                  placeholder={gcpAccounts.length > 0 ? "Select GCP project" : "No GCP projects"}
                   mode="single"
                   disabled={loading}
                 />
@@ -584,53 +521,35 @@ const ComplianceDashboard = ({
             )}
           </div>
 
-          {/* ── Error banners ──────────────────────────────────────────────── */}
-          {errorClouds.length > 0 && isReportAvailable && (
+          {/* ── Error banner ──────────────────────────────────────────────── */}
+          {cloudStatuses.aws?.status === "error" && isReportAvailable && (
             <div className="mb-4">
-              {errorClouds.map((cloud) => (
-                <Alert
-                  key={cloud}
-                  type="warning"
-                  showIcon
-                  className="mb-2"
-                  message={`Failed to load ${cloud.toUpperCase()} findings: ${cloudStatuses[cloud]?.error || "Unknown error"}`}
-                />
-              ))}
+              <Alert
+                type="warning"
+                showIcon
+                className="mb-2"
+                message={`Failed to load AWS findings: ${cloudStatuses.aws?.error || "Unknown error"}`}
+              />
             </div>
           )}
 
-          {/* ── Cloud filter ───────────────────────────────────────────────── */}
-          {isReportAvailable && (
-            <CloudFilter
-              selectedCloud={selectedCloud}
-              onCloudChange={setSelectedCloud}
-              cloudStatuses={cloudStatuses}
-            />
-          )}
-
-          {/* ── Per-cloud timestamps ───────────────────────────────────────── */}
-          {isReportAvailable && (
+          {/* ── Last scanned timestamp ─────────────────────────────────── */}
+          {isReportAvailable && cloudStatuses.aws && cloudStatuses.aws.status !== "skipped" && (
             <div className="mt-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg rounded-xl shadow-lg shadow-indigo-500/10 p-4 border border-indigo-100 dark:border-slate-700">
-              <div className="flex flex-wrap items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-                {Object.entries(cloudStatuses)
-                  .filter(([, status]) => status.status !== "skipped")
-                  .map(([cloud, status]) => (
-                  <div key={cloud} className="flex items-center gap-2">
-                    {status.status === "error" ? (
-                      <span className="w-2 h-2 rounded-full bg-red-500" />
-                    ) : (
-                      <Clock className="w-4 h-4 text-indigo-600" />
-                    )}
-                    <span className="font-medium">{cloud.toUpperCase()}:</span>
-                    <span className="text-slate-900 dark:text-white">
-                      {status.status === "error"
-                        ? "Failed"
-                        : status.lastScanned
-                          ? new Date(status.lastScanned.replace("Z", "")).toLocaleString("en-GB", { hour12: true })
-                          : "No data"}
-                    </span>
-                  </div>
-                ))}
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                {cloudStatuses.aws.status === "error" ? (
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                ) : (
+                  <Clock className="w-4 h-4 text-indigo-600" />
+                )}
+                <span className="font-medium">AWS:</span>
+                <span className="text-slate-900 dark:text-white">
+                  {cloudStatuses.aws.status === "error"
+                    ? "Failed"
+                    : cloudStatuses.aws.lastScanned
+                      ? new Date(cloudStatuses.aws.lastScanned.replace("Z", "")).toLocaleString("en-GB", { hour12: true })
+                      : "No data"}
+                </span>
               </div>
             </div>
           )}
@@ -643,7 +562,7 @@ const ComplianceDashboard = ({
               <NoDataAvailableMessageComponent
                 messages={[
                   "No data available",
-                  `Select accounts and click 'View Reports' to see ${config.label} findings across all clouds.`,
+                  `Select an AWS account and click 'View Reports' to see ${config.label} findings.`,
                 ]}
               />
             </div>
@@ -652,10 +571,12 @@ const ComplianceDashboard = ({
               <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg rounded-2xl shadow-xl shadow-indigo-500/10 border border-red-200 dark:border-red-800 p-12 text-center">
                 <div className="text-4xl mb-4">⚠️</div>
                 <p className="text-lg font-medium text-red-600 dark:text-red-400">
-                  Failed to load findings from all clouds.
+                  Failed to load findings from AWS.
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-                  The backend may not have {config.label} scan data yet. Run scans from the cloud-specific pages first, or try the Sample Report.
+                  {hasScanEndpoint
+                    ? `The backend may not have ${config.label} scan data yet. Run a scan first, or try the Sample Report.`
+                    : `No ${config.label} report data available for this account. Try the Sample Report to preview the dashboard.`}
                 </p>
               </div>
             </div>
@@ -664,9 +585,7 @@ const ComplianceDashboard = ({
               <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg rounded-2xl shadow-xl shadow-indigo-500/10 border border-indigo-100 dark:border-slate-700 p-12 text-center">
                 <div className="text-4xl mb-4">✅</div>
                 <p className="text-lg font-medium text-slate-700 dark:text-slate-300">
-                  {someCloudsFailed
-                    ? `Could not load findings from ${errorClouds.map((c) => c.toUpperCase()).join(", ")}. Other clouds show no ${config.label} violations.`
-                    : `No ${config.label} violations found across selected clouds.`}
+                  No {config.label} violations found.
                 </p>
               </div>
             </div>

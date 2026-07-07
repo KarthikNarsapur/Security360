@@ -199,7 +199,7 @@ def get_VPC_flow_log_findings(data: AccessTokenModel):
             try:
                 upload_to_s3(
                     file_name=saved_filename,
-                    folder_name=f"threat_detection_reports/{username}/VPC_flow_logs",
+                    folder_name=f"scan-reports/threat-detection-reports/{username}/vpc-flow-logs",
                     s3_folder_name=f"AWS-Threat-Detection/{username}/VPC_flow_logs",
                 )
             except Exception as e:

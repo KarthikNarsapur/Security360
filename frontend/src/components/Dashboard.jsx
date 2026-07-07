@@ -20,16 +20,11 @@ import Chatbot from "./Chatbot";
 import Cookies from "js-cookie";
 import { notifyError, notifyInfo } from "./Notification";
 import { useNavigate } from "react-router-dom";
-import CisDashboard from "./CIS/CisDashboard";
 import ClusterDisplay from "./UI/ClusterDisplay";
 import ClusterFindings from "./UI/ClusterFindings";
 import EKSHomePage from "./EKSHomePage";
 import { fetchUserDetails } from "./Utils";
-import ISODashboard from "./ISO/ISODashboard";
-// import NISTDashboard from "./NIST/NISTDashboard";
-import AWAFDashboard from "./AWAF/AWAFDashboard";
 import Site24x7_dashboard from "./Site24x7/Site24x7_dashboard";
-import OWASPSummary from "./Framework/OWASP/OWASPSummary";
 import ComplianceDashboard from "./Compliance/ComplianceDashboard";
 import ComplianceLanding from "./Compliance/ComplianceLanding";
 import IndustryDashboard from "./Industry/IndustryDashboard";
@@ -155,6 +150,11 @@ export default function Dashboard({ modal, darkMode }) {
     "gcp-summary": <GcpSummary {...sharedProps} results={gcpResults} setResults={setGcpResults} meta={gcpMeta} setMeta={setGcpMeta} />,
     "gcp-findings": <GcpFindings {...sharedProps} results={gcpResults} meta={gcpMeta} />,
 
+    // Cloud-specific Well-Architected frameworks
+    "aws-awafr": <ComplianceDashboard frameworkKey="wafr" {...sharedProps} />,
+    "az-waf": <ComplianceDashboard frameworkKey="azure-waf" {...sharedProps} />,
+    "gcp-caf": <ComplianceDashboard frameworkKey="gcp-caf" {...sharedProps} />,
+
     // Compliance (cloud-agnostic)
     "compliance": <ComplianceLanding setSelectedMenu={setSelectedMenu} />,
     "compliance-gdpr": <ComplianceDashboard frameworkKey="gdpr" {...sharedProps} />,
@@ -162,12 +162,16 @@ export default function Dashboard({ modal, darkMode }) {
     "compliance-hipaa": <ComplianceDashboard frameworkKey="hipaa" {...sharedProps} />,
     "compliance-soc2": <ComplianceDashboard frameworkKey="soc2" {...sharedProps} />,
     "compliance-fedramp": <ComplianceDashboard frameworkKey="fedramp" {...sharedProps} />,
-    "compliance-wafr": <ComplianceDashboard frameworkKey="wafr" {...sharedProps} />,
     "compliance-cis": <ComplianceDashboard frameworkKey="cis" {...sharedProps} />,
     "compliance-nist": <ComplianceDashboard frameworkKey="nist" {...sharedProps} />,
     "compliance-dpdp": <ComplianceDashboard frameworkKey="dpdp" {...sharedProps} />,
     "compliance-rbi": <ComplianceDashboard frameworkKey="rbi" {...sharedProps} />,
     "compliance-sebi": <ComplianceDashboard frameworkKey="sebi" {...sharedProps} />,
+    "compliance-nist80053": <ComplianceDashboard frameworkKey="nist80053" {...sharedProps} />,
+    "compliance-iso27001": <ComplianceDashboard frameworkKey="iso27001" {...sharedProps} />,
+    "compliance-iso27018": <ComplianceDashboard frameworkKey="iso27018" {...sharedProps} />,
+    "compliance-iso42001": <ComplianceDashboard frameworkKey="iso42001" {...sharedProps} />,
+    "compliance-owasp": <ComplianceDashboard frameworkKey="owasp" {...sharedProps} />,
     "compliance-ndhm": <ComplianceDashboard frameworkKey="ndhm" {...sharedProps} />,
     "compliance-ehr": <ComplianceDashboard frameworkKey="ehr" {...sharedProps} />,
 
@@ -391,59 +395,6 @@ export default function Dashboard({ modal, darkMode }) {
 
               {(selectedMenu === "threatdetect" || selectedMenu === "aws-threatdetect" || selectedMenu === "az-threatdetect" || selectedMenu === "gcp-threatdetect") && (
                 <ThreatDetection
-                  accountDetails={accountDetails}
-                  modal={modal}
-                  darkMode={darkMode}
-                  setUserName={setUserName}
-                  setFullName={setFullName}
-                  setAccountDetails={setAccountDetails}
-                  setEksAccountDetails={setEksAccountDetails}
-                />
-              )}
-              {selectedMenu === "cis" && (
-                <CisDashboard
-                  accountDetails={accountDetails}
-                  modal={modal}
-                  darkMode={darkMode}
-                  setUserName={setUserName}
-                  setFullName={setFullName}
-                  setAccountDetails={setAccountDetails}
-                  setEksAccountDetails={setEksAccountDetails}
-                />
-              )}
-              {selectedMenu === "iso" && (
-                <ISODashboard
-                  accountDetails={accountDetails}
-                  modal={modal}
-                  darkMode={darkMode}
-                  setUserName={setUserName}
-                  setFullName={setFullName}
-                  setAccountDetails={setAccountDetails}
-                  setEksAccountDetails={setEksAccountDetails}
-                />
-              )}
-              {/* {selectedMenu === "nist" && (
-                <NISTDashboard
-                  accountDetails={accountDetails}
-                  modal={modal}
-                  darkMode={darkMode}
-                  setUserName={setUserName}
-                  setFullName={setFullName}
-                  setAccountDetails={setAccountDetails}
-                  setEksAccountDetails={setEksAccountDetails}
-                />
-              )} */}
-              {selectedMenu === "owasp" && (
-                <OWASPSummary
-                  accountDetails={accountDetails}
-                  setUserName={setUserName}
-                  setFullName={setFullName}
-                  setAccountDetails={setAccountDetails}
-                  setEksAccountDetails={setEksAccountDetails}
-                />
-              )}
-              {selectedMenu === "awafr" && (
-                <AWAFDashboard
                   accountDetails={accountDetails}
                   modal={modal}
                   darkMode={darkMode}

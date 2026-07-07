@@ -165,6 +165,8 @@ def get_report_from_s3_function(data: ReportRequest):
             }
 
     try:
+        # Normalize report type to lowercase to handle any case from frontend
+        data.type = data.type.lower().strip() if data.type else data.type
 
         # threat detection report
         if data.type == "threat_detection":
@@ -222,76 +224,37 @@ def get_report_from_s3_function(data: ReportRequest):
             return {"status": "ok", "data": summary_data}
 
         # cis scan reports
-        elif data.type == "cis":
-            if data.is_sample:
-                s3_folder_name = f"Sample_Reports/CIS_rules"
-                object_name = f"{s3_folder_name}/cis_sample_report.json"
-            else:
-                s3_folder_name = f"CIS-rules/{username}"
-                object_name = f"{s3_folder_name}/{account_id}.json"
-            # print("object name:, ", object_name)
+        # Legacy standalone branches removed — now handled by the unified framework block below
 
-            cis_scan_data = fetch_json_from_s3(object_name) or {}
-            # print("cis_scan data: ", cis_scan_data)
-            if cis_scan_data.get("status", "") == "error":
-                return cis_scan_data
-
-            return {"status": "ok", "data": cis_scan_data}
-
-        elif data.type == "ISO42001":
-            if data.is_sample:
-                s3_folder_name = f"Sample_Reports/ISO42001_rules"
-                object_name = f"{s3_folder_name}/iso42001_sample_report.json"
-            else:
-                s3_folder_name = f"ISO42001-rules/{username}"
-                object_name = f"{s3_folder_name}/{account_id}.json"
-            # print("object name:, ", object_name)
-
-            iso_scan_data = fetch_json_from_s3(object_name) or {}
-            # print("cis_scan data: ", iso_scan_data)
-            if iso_scan_data.get("status", "") == "error":
-                return iso_scan_data
-
-            return {"status": "ok", "data": iso_scan_data}
-
-        elif data.type == "NIST":
-            if data.is_sample:
-                s3_folder_name = f"Sample_Reports/NIST_rules"
-                object_name = f"{s3_folder_name}/nist_sample_report.json"
-            else:
-                s3_folder_name = f"NIST-rules/{username}"
-                object_name = f"{s3_folder_name}/{account_id}.json"
-            # print("object name:, ", object_name)
-
-            nist_scan_data = fetch_json_from_s3(object_name) or {}
-            if nist_scan_data.get("status", "") == "error":
-                return nist_scan_data
-
-            return {"status": "ok", "data": nist_scan_data}
-
-        elif data.type == "AWARF":
-            if data.is_sample:
-                s3_folder_name = f"Sample_Reports/AWAF_rules"
-                object_name = f"{s3_folder_name}/awaf_sample_report.json"
-            else:
-                s3_folder_name = f"AWAF-rules/{username}"
-                object_name = f"{s3_folder_name}/{account_id}.json"
-            # print("object name:, ", object_name)
-
-            awaf_scan_data = fetch_json_from_s3(object_name) or {}
-            if awaf_scan_data.get("status", "") == "error":
-                return awaf_scan_data
-
-            return {"status": "ok", "data": awaf_scan_data}
-
-        elif data.type in ("rbi", "sebi", "pcidss", "dpdp"):
+        elif data.type in ("rbi", "sebi", "pcidss", "dpdp", "cis", "iso42001", "iso27001", "iso27018", "nist", "wafr", "owasp", "ndhm", "dpdp_rules_2025"):
             framework = data.type
+
+            # Legacy S3 path mapping for frameworks that previously used different folder names
+            LEGACY_PATHS = {
+                "cis": ("CIS-rules", "cis_sample_report.json", "CIS_rules"),
+                "nist": ("NIST-rules", "nist_sample_report.json", "NIST_rules"),
+                "wafr": ("AWAF-rules", "awaf_sample_report.json", "AWAF_rules"),
+                "iso42001": ("ISO42001-rules", "iso42001_sample_report.json", "ISO42001_rules"),
+            }
+
             if data.is_sample:
-                s3_folder_name = f"Sample_Reports/{framework}_rules"
-                object_name = f"{s3_folder_name}/{framework}_sample_report.json"
+                if framework in LEGACY_PATHS:
+                    _, sample_file, sample_folder = LEGACY_PATHS[framework]
+                    s3_folder_name = f"Sample_Reports/{sample_folder}"
+                    object_name = f"{s3_folder_name}/{sample_file}"
+                else:
+                    s3_folder_name = f"Sample_Reports/{framework}_rules"
+                    object_name = f"{s3_folder_name}/{framework}_sample_report.json"
             else:
+                # Try new unified path first
                 s3_folder_name = f"aws-account-security-reports/{username}/{framework}"
                 object_name = f"{s3_folder_name}/{account_id}.json"
+
+                fw_data = fetch_json_from_s3(object_name)
+                # If not found in new path, try legacy path
+                if (not fw_data or fw_data.get("status", "") == "error") and framework in LEGACY_PATHS:
+                    legacy_folder, _, _ = LEGACY_PATHS[framework]
+                    object_name = f"{legacy_folder}/{username}/{account_id}.json"
 
             fw_data = fetch_json_from_s3(object_name) or {}
             if fw_data.get("status", "") == "error":

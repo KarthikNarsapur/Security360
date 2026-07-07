@@ -91,7 +91,7 @@ const FindingDrawer = ({ open, onClose, finding, regionLabel = "Region" }) => {
                       Problem Statement
                     </label>
                     <p className="text-gray-900 mt-1">
-                      {rule.problem_statement}
+                      {rule.problem_statement || rule.description || "—"}
                     </p>
                   </div>
                   <div>

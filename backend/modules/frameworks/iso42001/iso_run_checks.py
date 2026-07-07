@@ -1,4 +1,4 @@
-from modules.ISO.iso_42001 import (
+from modules.frameworks.iso42001.iso_42001 import (
     check_understanding_organization_context,
     check_understanding_stakeholder_needs,
     check_defining_scope_ai_management,
@@ -51,35 +51,6 @@ from utils.upload_to_s3 import upload_to_s3, save_report
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-# active_connections = []
-
-
-# async def websocket_manager(websocket: WebSocket):
-#     await websocket.accept()
-#     active_connections.append(websocket)
-#     try:
-#         while True:
-#             await websocket.receive_text()
-#     except WebSocketDisconnect:
-#         active_connections.remove(websocket)
-
-
-# async def send_progress_update(
-#     progress: int, status: str = "scanning", message: str = ""
-# ):
-#     data = {"progress": progress, "status": status, "message": message}
-
-#     # Remove disconnected clients
-#     disconnected = []
-#     for connection in active_connections:
-#         try:
-#             await connection.send_json(data)
-#         except:
-#             disconnected.append(connection)
-
-#     for conn in disconnected:
-#         active_connections.remove(conn)
-
 iso_checks = {
     # --- ISO/IEC 38500: All Functions ---
     # A - Context of the Organization
@@ -131,38 +102,15 @@ iso_checks = {
 }
 
 
-async def run_iso_checks(
-    session,
-    #  total_functions,
-    # completed_functions,
-    region,
-):
+async def run_iso_checks(session, region):
     isoScanResults = {}
-    # current_completed = completed_functions
 
     for check_id, check_function in iso_checks.items():
-        # print("completed functions: ", completed_functions)
         try:
             print(f"Executing check: {check_id}")
             isoScanResults[check_id] = check_function(session)
-            # completed_functions += 1
-
-            # progress = int((completed_functions / total_functions) * 95)
-            # await send_progress_update(
-            #     progress, "scanning", f"Completed {check_id} in {region}"
-            # )
-
-            # await asyncio.sleep(0.1)
-
         except Exception as e:
             print(f"Error in check {check_id}: {e}")
-
-            # completed_functions += 1
-            # progress = int((completed_functions / total_functions) * 95)
-
-            # await send_progress_update(
-            #     progress, "scanning", f"Error in {check_id} in {region}: {str(e)}"
-            # )
 
     return isoScanResults
 
@@ -173,44 +121,18 @@ async def iso_rules_scan_function(data: AccessTokenModel):
         from utils.upload_to_s3 import save_report
         from db.crud import increament_scan_count, check_scan_threshold
 
-        # step 1 check data
         if not data.username:
-            return {
-                "status": "error",
-                "error_message": "Username is missing.",
-            }
+            return {"status": "error", "error_message": "Username is missing."}
         if not data.regions or len(data.regions) == 0:
-            return {
-                "status": "error",
-                "error_message": "AWS regions list is missing or empty.",
-            }
+            return {"status": "error", "error_message": "AWS regions list is missing or empty."}
         if not data.accounts or len(data.accounts) == 0:
-            return {
-                "status": "error",
-                "error_message": "AWS accounts list is missing or empty.",
-            }
+            return {"status": "error", "error_message": "AWS accounts list is missing or empty."}
 
         REGIONS = data.regions
         username = data.username
         roles_info = data.accounts
-
-        # threshold_response = check_scan_threshold(username=username, scan_type="cis")
-        # if threshold_response.get("status") == "error":
-        #     return threshold_response
-
-        # total_functions = calculate_total_functions(
-        #     regions_cnt=len(REGIONS), accounts_cnt=len(roles_info)
-        # )
-        # completed_functions = 0
-        # await send_progress_update(0, "scanning", "Initializing CIS scan...")
-
-        # print("Username: ", username)
-        # print("Regions: ", REGIONS)
-        # print("Roles Info: ", roles_info)
-
         notifications = {"success": [], "error": []}
 
-        # step 2: loop through roles and run scan
         for role in roles_info:
             account_id = role.account_id or ""
             role_arn = role.role_arn or ""
@@ -219,7 +141,6 @@ async def iso_rules_scan_function(data: AccessTokenModel):
                 print(f"Missing account details: {account_id}")
                 continue
             try:
-                # step 3: assume Role
                 sts_client = boto3.client("sts")
                 try:
                     assumed_role = sts_client.assume_role(
@@ -228,11 +149,6 @@ async def iso_rules_scan_function(data: AccessTokenModel):
                 except Exception as e:
                     print(f"Error assuming role for {account_id}: {e}")
                     notifications["error"].append(f"Role assume failed: {account_id}")
-                    # await send_progress_update(
-                    #     int((completed_functions / total_functions) * 95),
-                    #     "error",
-                    #     f"Failed to assume role for account {account_id}",
-                    # )
                     continue
 
                 credentials = assumed_role["Credentials"]
@@ -253,51 +169,20 @@ async def iso_rules_scan_function(data: AccessTokenModel):
 
                     if not session:
                         print(f" Failed to create session for account {account_id}")
-                        # completed_functions += len(cis_checks)
                         failed_regions.append(region)
                         continue
 
                     print(f" Checking region: {region}")
                     try:
-                        # region_progress = int(
-                        #     (completed_functions / total_functions) * 95
-                        # )
-
-                        # await send_progress_update(
-                        #     region_progress,
-                        #     "scanning",
-                        #     f"Scanning region {region} ",
-                        # )
-                        results = await run_iso_checks(
-                            session=session,
-                            # total_functions=total_functions,
-                            # completed_functions=completed_functions,
-                            region=region,
-                        )
-                        # completed_functions += len(cis_checks)
+                        results = await run_iso_checks(session=session, region=region)
                         regional_results.append({"region": region, "data": results})
                     except Exception as e:
-                        # completed_functions += len(cis_checks)
-                        # await send_progress_update(
-                        #     int((completed_functions / total_functions) * 100),
-                        #     "error",
-                        #     f"Error scanning region {region}: {str(e)}",
-                        # )
-                        print(
-                            f" Error scanning region {region} for account {account_id}: {e}"
-                        )
+                        print(f" Error scanning region {region} for account {account_id}: {e}")
 
-                # await send_progress_update(95, "scanning", "Saving scan results...")
                 if len(failed_regions) > 0:
                     print(f"failed scan for {account_id} in regions: {failed_regions}")
 
-                if len(failed_regions) == len(REGIONS):
-                    print(f"failed scan for {account_id} in all regions")
-
                 try:
-
-                    # save report and upload to S3
-                    print("sending this report: ", regional_results)
                     saved_filename = save_report(
                         account_id=account_id,
                         username=username,
@@ -313,31 +198,15 @@ async def iso_rules_scan_function(data: AccessTokenModel):
                     continue
 
                 try:
-                    # await send_progress_update(
-                    #     98, "scanning", "Uploading results to S3..."
-                    # )
                     upload_to_s3(
                         file_name=saved_filename,
                         folder_name=f"ISO42001-reports/{username}",
                         s3_folder_name=f"ISO42001-rules/{username}",
                     )
                 except Exception as e:
-                    # await send_progress_update(0, "error", f"Upload failed: {str(e)}")
                     notifications["error"].append(
                         f" Error uploading data to S3 for account id: {account_id}"
                     )
-
-                    # try:
-                    #     increament_scan_count(username=username, scan_type="cis")
-                    #     await send_progress_update(
-                    #         100, "completed", "Scan completed successfully"
-                    #     )
-                    #     notifications["success"].append(f"scan successfull : {account_id}")
-                    # except Exception as e:
-                    #     print(
-                    #         f"Error incrementing scan count for account {account_id}: {e}"
-                    #     )
-
                     print(f" Error uploading data to S3: {e}")
 
             except Exception as e:
@@ -349,5 +218,4 @@ async def iso_rules_scan_function(data: AccessTokenModel):
 
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
-        # await send_progress_update(0, "error", f"Scanning failed: {str(e)}")
         return {"status": "error", "message": str(e)}

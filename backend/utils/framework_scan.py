@@ -25,6 +25,13 @@ def _get_framework_registry():
     from modules.frameworks.DPDP.dpdp_rules_2025_run_checks import (
         run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks,
     )
+    from modules.CIS.cis_framework_adapter import run_cis_checks_sync
+    from modules.frameworks.iso42001.iso_framework_adapter import run_iso42001_checks_sync
+    from modules.frameworks.iso27001.iso27001_framework_adapter import run_iso27001_checks_sync
+    from modules.frameworks.iso27018.iso27018_checks import run_iso27018_global_checks, run_iso27018_regional_checks
+    from modules.frameworks.NDHM.ndhm_run_checks import run_ndhm_global_checks, run_ndhm_regional_checks
+    from modules.NIST.nist_framework_adapter import run_nist_checks_sync
+    from modules.AWAF.awaf_framework_adapter import run_awaf_checks_sync
 
     return {
         "rbi": (run_rbi_checks, None, "global_only"),
@@ -32,6 +39,13 @@ def _get_framework_registry():
         "pcidss": (run_pcidss_checks, None, "global_only"),
         "dpdp": (run_dpdp_global_checks, run_dpdp_regional_checks, "hybrid"),
         "dpdp_rules_2025": (run_dpdp_rules_2025_global_checks, run_dpdp_rules_2025_regional_checks, "hybrid"),
+        "cis": (run_cis_checks_sync, None, "global_only"),
+        "iso42001": (run_iso42001_checks_sync, None, "global_only"),
+        "iso27001": (run_iso27001_checks_sync, None, "global_only"),
+        "iso27018": (run_iso27018_global_checks, run_iso27018_regional_checks, "hybrid"),
+        "ndhm": (run_ndhm_global_checks, run_ndhm_regional_checks, "hybrid"),
+        "nist": (run_nist_checks_sync, None, "global_only"),
+        "wafr": (run_awaf_checks_sync, None, "global_only"),
     }
 
 
@@ -136,7 +150,13 @@ def run_framework_scan(data: AccessTokenModel, framework: str, scan_id: str = No
                         region_name="ap-south-1",
                     )
                     try:
-                        results = global_fn(session, scan_meta_data)
+                        # Pass progress callback if the check function supports it
+                        import inspect
+                        sig = inspect.signature(global_fn)
+                        if 'progress_callback' in sig.parameters:
+                            results = global_fn(session, scan_meta_data, progress_callback=_progress)
+                        else:
+                            results = global_fn(session, scan_meta_data)
                         scan_results.append(
                             {
                                 "region": "global",
