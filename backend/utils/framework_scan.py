@@ -18,7 +18,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 #   is_global_only=False → runs once per region
 # ─────────────────────────────────────────────────────────────────────────────
 def _get_framework_registry():
-    from modules.RBI.rbi_run_checks import run_rbi_checks
+    from modules.frameworks.RBI_CSF.rbi_csf_run_checks import run_rbi_csf_global_checks, run_rbi_csf_regional_checks
     from modules.frameworks.SEBI.sebi_run_checks import run_sebi_global_checks, run_sebi_regional_checks
     from modules.PCIDSS.pcidss_run_checks import run_pcidss_checks
     from modules.frameworks.DPDP.dpdp_run_checks import run_dpdp_global_checks, run_dpdp_regional_checks
@@ -34,7 +34,7 @@ def _get_framework_registry():
     from modules.AWAF.awaf_framework_adapter import run_awaf_checks_sync
 
     return {
-        "rbi": (run_rbi_checks, None, "global_only"),
+        "rbi": (run_rbi_csf_global_checks, run_rbi_csf_regional_checks, "hybrid"),
         "sebi": (run_sebi_global_checks, run_sebi_regional_checks, "hybrid"),
         "pcidss": (run_pcidss_checks, None, "global_only"),
         "dpdp": (run_dpdp_global_checks, run_dpdp_regional_checks, "hybrid"),
